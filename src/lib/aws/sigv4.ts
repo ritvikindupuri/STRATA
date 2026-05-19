@@ -5,7 +5,7 @@ const enc = new TextEncoder();
 
 async function sha256Hex(data: string | Uint8Array): Promise<string> {
   const buf = typeof data === "string" ? enc.encode(data) : data;
-  const hash = await crypto.subtle.digest("SHA-256", buf);
+  const hash = await crypto.subtle.digest("SHA-256", buf as BufferSource);
   return toHex(new Uint8Array(hash));
 }
 
