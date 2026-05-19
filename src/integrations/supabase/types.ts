@@ -14,10 +14,197 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      aws_connections: {
+        Row: {
+          access_key_id: string
+          aws_account_id: string | null
+          aws_arn: string | null
+          created_at: string
+          id: string
+          label: string
+          last_error: string | null
+          last_validated_at: string | null
+          region: string
+          secret_access_key: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          access_key_id: string
+          aws_account_id?: string | null
+          aws_arn?: string | null
+          created_at?: string
+          id?: string
+          label?: string
+          last_error?: string | null
+          last_validated_at?: string | null
+          region?: string
+          secret_access_key: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          access_key_id?: string
+          aws_account_id?: string | null
+          aws_arn?: string | null
+          created_at?: string
+          id?: string
+          label?: string
+          last_error?: string | null
+          last_validated_at?: string | null
+          region?: string
+          secret_access_key?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      findings: {
+        Row: {
+          ai_analyzed_at: string | null
+          ai_category: string | null
+          ai_remediation: string | null
+          ai_severity: string | null
+          ai_summary: string | null
+          connection_id: string
+          created_at: string
+          event_name: string | null
+          event_time: string | null
+          external_id: string
+          id: string
+          raw: Json
+          region: string | null
+          severity: number | null
+          source: string
+          source_ip: string | null
+          title: string | null
+          user_agent: string | null
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          ai_analyzed_at?: string | null
+          ai_category?: string | null
+          ai_remediation?: string | null
+          ai_severity?: string | null
+          ai_summary?: string | null
+          connection_id: string
+          created_at?: string
+          event_name?: string | null
+          event_time?: string | null
+          external_id: string
+          id?: string
+          raw: Json
+          region?: string | null
+          severity?: number | null
+          source: string
+          source_ip?: string | null
+          title?: string | null
+          user_agent?: string | null
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          ai_analyzed_at?: string | null
+          ai_category?: string | null
+          ai_remediation?: string | null
+          ai_severity?: string | null
+          ai_summary?: string | null
+          connection_id?: string
+          created_at?: string
+          event_name?: string | null
+          event_time?: string | null
+          external_id?: string
+          id?: string
+          raw?: Json
+          region?: string | null
+          severity?: number | null
+          source?: string
+          source_ip?: string | null
+          title?: string | null
+          user_agent?: string | null
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "findings_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "aws_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "findings_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "aws_connections_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          email: string | null
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      aws_connections_safe: {
+        Row: {
+          aws_account_id: string | null
+          aws_arn: string | null
+          created_at: string | null
+          id: string | null
+          label: string | null
+          last_error: string | null
+          last_validated_at: string | null
+          region: string | null
+          status: string | null
+          user_id: string | null
+        }
+        Insert: {
+          aws_account_id?: string | null
+          aws_arn?: string | null
+          created_at?: string | null
+          id?: string | null
+          label?: string | null
+          last_error?: string | null
+          last_validated_at?: string | null
+          region?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          aws_account_id?: string | null
+          aws_arn?: string | null
+          created_at?: string | null
+          id?: string | null
+          label?: string | null
+          last_error?: string | null
+          last_validated_at?: string | null
+          region?: string | null
+          status?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       [_ in never]: never
