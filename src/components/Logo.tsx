@@ -1,6 +1,10 @@
 import { cn } from "@/lib/utils";
 
-export function Logo({ className, size = 28 }: { className?: string; size?: number }) {
+/**
+ * STRATA glyph — hexagonal aperture with concentric strata + scan dot.
+ * Represents layered defense (hex shield) + autonomous observation (iris).
+ */
+export function Logo({ className, size = 28, animated = false }: { className?: string; size?: number; animated?: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none" className={cn(className)} aria-hidden>
       <defs>
@@ -8,23 +12,55 @@ export function Logo({ className, size = 28 }: { className?: string; size?: numb
           <stop offset="0%" stopColor="oklch(0.82 0.16 200)" />
           <stop offset="100%" stopColor="oklch(0.65 0.22 295)" />
         </linearGradient>
+        <radialGradient id="strataCore" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="oklch(0.95 0.10 200)" />
+          <stop offset="100%" stopColor="oklch(0.65 0.22 295 / 0)" />
+        </radialGradient>
       </defs>
-      {/* Layered strata — stacked defense layers, narrowing upward like a pyramid of protection */}
-      <path d="M10 46 L54 46" stroke="url(#strataGrad)" strokeWidth="3" strokeLinecap="round" opacity="0.4" />
-      <path d="M16 36 L48 36" stroke="url(#strataGrad)" strokeWidth="3" strokeLinecap="round" opacity="0.65" />
-      <path d="M22 26 L42 26" stroke="url(#strataGrad)" strokeWidth="3" strokeLinecap="round" opacity="0.9" />
-      <path d="M28 16 L36 16" stroke="url(#strataGrad)" strokeWidth="3" strokeLinecap="round" />
-      {/* Threat marker — single intercepted pulse */}
-      <circle cx="32" cy="16" r="2.2" fill="url(#strataGrad)" />
+
+      {/* Outer hex shield */}
+      <path
+        d="M32 3 L57 17 L57 47 L32 61 L7 47 L7 17 Z"
+        stroke="url(#strataGrad)"
+        strokeWidth="2"
+        strokeLinejoin="round"
+        opacity="0.9"
+      />
+      {/* Middle hex stratum */}
+      <path
+        d="M32 13 L48 22 L48 42 L32 51 L16 42 L16 22 Z"
+        stroke="url(#strataGrad)"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+        opacity="0.55"
+      />
+      {/* Inner hex stratum */}
+      <path
+        d="M32 22 L40 27 L40 37 L32 42 L24 37 L24 27 Z"
+        stroke="url(#strataGrad)"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+        opacity="0.85"
+      />
+      {/* Iris glow */}
+      <circle cx="32" cy="32" r="9" fill="url(#strataCore)" />
+      {/* Pupil / scan dot */}
+      <circle cx="32" cy="32" r="2.6" fill="oklch(0.95 0.10 200)">
+        {animated && (
+          <animate attributeName="opacity" values="1;0.35;1" dur="2.4s" repeatCount="indefinite" />
+        )}
+      </circle>
+      {/* Top scan tick */}
+      <path d="M32 3 L32 9" stroke="url(#strataGrad)" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
 
-export function LogoMark({ className }: { className?: string }) {
+export function LogoMark({ className, animated = false }: { className?: string; animated?: boolean }) {
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
-      <Logo size={26} />
-      <span className="font-display text-[15px] font-semibold tracking-[0.18em]">
+      <Logo size={26} animated={animated} />
+      <span className="font-display text-[15px] font-semibold tracking-[0.22em]">
         STRATA
       </span>
     </div>
