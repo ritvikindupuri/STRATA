@@ -336,6 +336,7 @@ export type Database = {
     Views: {
       aws_connections_safe: {
         Row: {
+          auto_response_enabled: boolean | null
           aws_account_id: string | null
           aws_arn: string | null
           created_at: string | null
@@ -348,6 +349,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          auto_response_enabled?: boolean | null
           aws_account_id?: string | null
           aws_arn?: string | null
           created_at?: string | null
@@ -360,6 +362,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          auto_response_enabled?: boolean | null
           aws_account_id?: string | null
           aws_arn?: string | null
           created_at?: string | null
