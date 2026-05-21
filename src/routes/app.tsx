@@ -26,8 +26,10 @@ function AppLayout() {
 
   const items = [
     { to: "/app", label: "Dashboard", icon: LayoutDashboard, exact: true },
-    { to: "/app/connect", label: "Connect AWS", icon: Cloud },
+    { to: "/app/timeline", label: "Timeline", icon: GitCommitHorizontal },
     { to: "/app/findings", label: "Findings", icon: ListTree },
+    { to: "/app/reports", label: "Reports & Rules", icon: FileText },
+    { to: "/app/connect", label: "Connect AWS", icon: Cloud },
   ];
 
   return (
