@@ -17,7 +17,7 @@ function NotFoundComponent() {
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-display font-bold text-gradient">404</h1>
         <h2 className="mt-4 text-xl font-semibold">Signal lost</h2>
-        <p className="mt-2 text-sm text-muted-foreground">This route isn't in Argus's watchlist.</p>
+        <p className="mt-2 text-sm text-muted-foreground">This route isn't on Strata's watchlist.</p>
         <Link to="/" className="mt-6 inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">Return home</Link>
       </div>
     </div>
@@ -43,11 +43,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "ARGUS — AI Cloud Intrusion Detection for AWS" },
-      { name: "description", content: "Argus is an AI-powered cloud intrusion detection system that watches your AWS account in real time — CloudTrail and GuardDuty signals analyzed by Gemini for severity, category, and remediation." },
-      { name: "author", content: "Argus" },
-      { property: "og:title", content: "ARGUS — AI Cloud Intrusion Detection for AWS" },
-      { property: "og:description", content: "Detect, triage, and remediate AWS intrusions with AI." },
+      { title: "STRATA — AI Cloud Intrusion Detection for AWS" },
+      { name: "description", content: "Strata is an AI-powered cloud intrusion detection system for AWS. CloudTrail and GuardDuty signals triaged across five layers — identity, API, network, data, control — in seconds." },
+      { name: "author", content: "Strata" },
+      { property: "og:title", content: "STRATA — See every layer of your cloud." },
+      { property: "og:description", content: "AI intrusion detection for AWS, triaged in seconds." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

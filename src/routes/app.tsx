@@ -19,7 +19,7 @@ function AppLayout() {
   if (loading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="font-mono text-sm text-muted-foreground animate-shimmer">// initializing argus…</div>
+        <div className="font-mono text-sm text-muted-foreground animate-shimmer">// initializing strata…</div>
       </div>
     );
   }
