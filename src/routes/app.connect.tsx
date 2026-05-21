@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { saveAwsConnection, revalidateAwsConnection, disconnectAws } from "@/lib/aws.functions";
+import { setAutoResponse } from "@/lib/agent.functions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -80,10 +81,21 @@ function ConnectAws() {
                 <div>region · <span className="text-foreground">{conn.data.region}</span></div>
                 <div>validated · <span className="text-foreground">{conn.data.last_validated_at ? formatDistanceToNow(new Date(conn.data.last_validated_at), { addSuffix: true }) : "never"}</span></div>
               </div>
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" onClick={handleRevalidate}>Re-validate</Button>
+                <Button size="sm" variant="outline" onClick={async () => {
+                  const enabled = !conn.data?.auto_response_enabled;
+                  await setAutoResponse({ data: { enabled } });
+                  toast.success(enabled ? "Auto-response enabled — agents may disable compromised keys" : "Auto-response disabled");
+                  conn.refetch();
+                }}>
+                  {conn.data?.auto_response_enabled ? "Disable auto-response" : "Enable auto-response"}
+                </Button>
                 <Button size="sm" variant="outline" onClick={handleDisconnect} className="text-[color:var(--critical)]"><Trash2 className="mr-2 h-4 w-4" />Disconnect</Button>
               </div>
+              {conn.data?.auto_response_enabled && (
+                <p className="mt-3 font-mono text-[10px] uppercase tracking-widest text-[color:var(--warning)]">⚡ auto-response active · agents will deactivate compromised iam keys</p>
+              )}
             </div>
           </div>
         </div>
@@ -115,6 +127,7 @@ function ConnectAws() {
                 <PolicyCopy name="AmazonGuardDutyReadOnlyAccess" />
               </div>
               <p className="mt-3 text-xs text-muted-foreground">These are read-only AWS-managed policies. Strata cannot create, modify, or delete anything in your account with them.</p>
+              <p className="mt-2 text-xs text-muted-foreground"><b>Optional auto-response:</b> to let Strata's agents automatically deactivate compromised access keys, also attach an inline policy allowing only <span className="font-mono text-primary">iam:UpdateAccessKey</span>. Skip this if you only want detection.</p>
               Click <Kbd>Next</Kbd>, then <Kbd>Create user</Kbd>.
             </>
           } />

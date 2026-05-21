@@ -14,12 +14,86 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_actions: {
+        Row: {
+          action_type: string
+          connection_id: string | null
+          created_at: string
+          details: Json
+          finding_id: string | null
+          id: string
+          reasoning: string | null
+          status: string
+          target: string | null
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          connection_id?: string | null
+          created_at?: string
+          details?: Json
+          finding_id?: string | null
+          id?: string
+          reasoning?: string | null
+          status?: string
+          target?: string | null
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          connection_id?: string | null
+          created_at?: string
+          details?: Json
+          finding_id?: string | null
+          id?: string
+          reasoning?: string | null
+          status?: string
+          target?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      agent_runs: {
+        Row: {
+          connection_id: string
+          errors: string[]
+          finished_at: string | null
+          id: string
+          started_at: string
+          stats: Json
+          status: string
+          user_id: string
+        }
+        Insert: {
+          connection_id: string
+          errors?: string[]
+          finished_at?: string | null
+          id?: string
+          started_at?: string
+          stats?: Json
+          status?: string
+          user_id: string
+        }
+        Update: {
+          connection_id?: string
+          errors?: string[]
+          finished_at?: string | null
+          id?: string
+          started_at?: string
+          stats?: Json
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       aws_connections: {
         Row: {
           access_key_id: string
+          auto_response_enabled: boolean
           aws_account_id: string | null
           aws_arn: string | null
           created_at: string
+          encrypted_secret: string | null
           id: string
           label: string
           last_error: string | null
@@ -31,9 +105,11 @@ export type Database = {
         }
         Insert: {
           access_key_id: string
+          auto_response_enabled?: boolean
           aws_account_id?: string | null
           aws_arn?: string | null
           created_at?: string
+          encrypted_secret?: string | null
           id?: string
           label?: string
           last_error?: string | null
@@ -45,9 +121,11 @@ export type Database = {
         }
         Update: {
           access_key_id?: string
+          auto_response_enabled?: boolean
           aws_account_id?: string | null
           aws_arn?: string | null
           created_at?: string
+          encrypted_secret?: string | null
           id?: string
           label?: string
           last_error?: string | null
@@ -55,6 +133,51 @@ export type Database = {
           region?: string
           secret_access_key?: string
           status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      detection_rules: {
+        Row: {
+          connection_id: string
+          created_at: string
+          description: string
+          enabled: boolean
+          generated_by: string
+          id: string
+          match_event_names: string[]
+          match_keywords: string[]
+          mitre_technique: string | null
+          name: string
+          severity: string
+          user_id: string
+        }
+        Insert: {
+          connection_id: string
+          created_at?: string
+          description: string
+          enabled?: boolean
+          generated_by?: string
+          id?: string
+          match_event_names?: string[]
+          match_keywords?: string[]
+          mitre_technique?: string | null
+          name: string
+          severity?: string
+          user_id: string
+        }
+        Update: {
+          connection_id?: string
+          created_at?: string
+          description?: string
+          enabled?: boolean
+          generated_by?: string
+          id?: string
+          match_event_names?: string[]
+          match_keywords?: string[]
+          mitre_technique?: string | null
+          name?: string
+          severity?: string
           user_id?: string
         }
         Relationships: []
@@ -143,6 +266,51 @@ export type Database = {
           },
         ]
       }
+      incident_reports: {
+        Row: {
+          affected_resources: string[]
+          connection_id: string
+          created_at: string
+          executive_summary: string
+          id: string
+          mitre_tactics: string[]
+          recommendations: string
+          related_finding_ids: string[]
+          severity: string
+          timeline: Json
+          title: string
+          user_id: string
+        }
+        Insert: {
+          affected_resources?: string[]
+          connection_id: string
+          created_at?: string
+          executive_summary: string
+          id?: string
+          mitre_tactics?: string[]
+          recommendations: string
+          related_finding_ids?: string[]
+          severity?: string
+          timeline?: Json
+          title: string
+          user_id: string
+        }
+        Update: {
+          affected_resources?: string[]
+          connection_id?: string
+          created_at?: string
+          executive_summary?: string
+          id?: string
+          mitre_tactics?: string[]
+          recommendations?: string
+          related_finding_ids?: string[]
+          severity?: string
+          timeline?: Json
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -168,6 +336,7 @@ export type Database = {
     Views: {
       aws_connections_safe: {
         Row: {
+          auto_response_enabled: boolean | null
           aws_account_id: string | null
           aws_arn: string | null
           created_at: string | null
@@ -180,6 +349,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          auto_response_enabled?: boolean | null
           aws_account_id?: string | null
           aws_arn?: string | null
           created_at?: string | null
@@ -192,6 +362,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          auto_response_enabled?: boolean | null
           aws_account_id?: string | null
           aws_arn?: string | null
           created_at?: string | null

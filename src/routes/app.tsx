@@ -2,7 +2,7 @@ import { createFileRoute, Outlet, Link, useNavigate, useLocation } from "@tansta
 import { useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { LogoMark } from "@/components/Logo";
-import { LayoutDashboard, Cloud, ListTree, LogOut } from "lucide-react";
+import { LayoutDashboard, Cloud, ListTree, LogOut, GitCommitHorizontal, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/app")({ component: AppLayout });
@@ -26,8 +26,10 @@ function AppLayout() {
 
   const items = [
     { to: "/app", label: "Dashboard", icon: LayoutDashboard, exact: true },
-    { to: "/app/connect", label: "Connect AWS", icon: Cloud },
+    { to: "/app/timeline", label: "Timeline", icon: GitCommitHorizontal },
     { to: "/app/findings", label: "Findings", icon: ListTree },
+    { to: "/app/reports", label: "Reports & Rules", icon: FileText },
+    { to: "/app/connect", label: "Connect AWS", icon: Cloud },
   ];
 
   return (

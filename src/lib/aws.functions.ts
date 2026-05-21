@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { signAwsRequest } from "@/lib/aws/sigv4";
+import { encryptSecret, decryptSecret } from "@/lib/aws/crypto";
 
 const REGIONS = [
   "us-east-1", "us-east-2", "us-west-1", "us-west-2",
@@ -60,7 +61,9 @@ export const saveAwsConnection = createServerFn({ method: "POST" })
       label: data.label,
       region: data.region,
       access_key_id: data.accessKeyId,
-      secret_access_key: data.secretAccessKey,
+      // Legacy plaintext column is now a redacted placeholder; real value lives encrypted.
+      secret_access_key: "__encrypted__",
+      encrypted_secret: encryptSecret(data.secretAccessKey),
       aws_account_id: accountId,
       aws_arn: arn,
       status: "connected" as const,
@@ -251,6 +254,11 @@ async function loadConnection(userId: string) {
     .select("*")
     .eq("user_id", userId)
     .maybeSingle();
+  if (!data) return null;
+  if (data.encrypted_secret) {
+    try { return { ...data, secret_access_key: decryptSecret(data.encrypted_secret) }; }
+    catch { /* fall through to plaintext fallback */ }
+  }
   return data;
 }
 
