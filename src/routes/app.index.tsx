@@ -65,10 +65,27 @@ function Dashboard() {
           <h1 className="mt-1 font-display text-3xl font-semibold">Threat overview</h1>
         </div>
         {conn.data?.status === "connected" && (
-          <Button onClick={handleSync} disabled={syncing}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? "Syncing…" : "Sync now"}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleSync} disabled={syncing || piloting}>
+              <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? "Syncing…" : "Sync"}
+            </Button>
+            <Button onClick={async () => {
+              setPiloting(true);
+              const t = toast.loading("Autopilot running — rules · sync · triage · contain · report");
+              try {
+                const r: any = await autopilot();
+                toast.dismiss(t);
+                if (!r.ok) { toast.error(r.error ?? "Autopilot failed"); return; }
+                toast.success(`Autopilot done · ${r.rules_created} rules · ${r.events_synced} events · ${r.blocked} blocked · ${r.reports} reports`);
+                findings.refetch();
+              } catch (e: any) { toast.dismiss(t); toast.error(e.message); }
+              finally { setPiloting(false); }
+            }} disabled={syncing || piloting} className="glow-ring">
+              <Bot className={`mr-2 h-4 w-4 ${piloting ? "animate-pulse" : ""}`} />
+              {piloting ? "Agents working…" : "Run Autopilot"}
+            </Button>
+          </div>
         )}
       </header>
 
