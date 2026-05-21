@@ -116,6 +116,7 @@ function ConnectAws() {
                 <PolicyCopy name="AmazonGuardDutyReadOnlyAccess" />
               </div>
               <p className="mt-3 text-xs text-muted-foreground">These are read-only AWS-managed policies. Strata cannot create, modify, or delete anything in your account with them.</p>
+              <p className="mt-2 text-xs text-muted-foreground"><b>Optional auto-response:</b> to let Strata's agents automatically deactivate compromised access keys, also attach an inline policy allowing only <span className="font-mono text-primary">iam:UpdateAccessKey</span>. Skip this if you only want detection.</p>
               Click <Kbd>Next</Kbd>, then <Kbd>Create user</Kbd>.
             </>
           } />
