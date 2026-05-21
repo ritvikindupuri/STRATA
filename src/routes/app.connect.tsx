@@ -66,7 +66,7 @@ function ConnectAws() {
     <div className="mx-auto max-w-4xl p-8">
       <p className="font-mono text-xs uppercase tracking-widest text-primary">// step-by-step</p>
       <h1 className="mt-1 font-display text-3xl font-semibold">Connect your AWS account</h1>
-      <p className="mt-2 text-muted-foreground">A read-only IAM user is all Argus needs. Follow these steps exactly — it takes about 3 minutes.</p>
+      <p className="mt-2 text-muted-foreground">A read-only IAM user is all Strata needs. Follow these steps exactly — it takes about 3 minutes.</p>
 
       {conn.data?.status === "connected" && (
         <div className="mt-6 rounded-2xl border border-[color:var(--success)]/40 bg-[color:var(--success)]/5 p-6 card-elevated">
@@ -94,7 +94,7 @@ function ConnectAws() {
         <div className="space-y-6">
           <StepBlock n="1" title="Sign in to the AWS Console" body={
             <>
-              Open the AWS IAM console. Make sure you're signed in to the AWS account you want Argus to watch (top right).
+              Open the AWS IAM console. Make sure you're signed in to the AWS account you want Strata to watch (top right).
               <a href="https://us-east-1.console.aws.amazon.com/iam/home#/users" target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-primary hover:underline">
                 Open IAM → Users <ExternalLink className="h-3.5 w-3.5" />
               </a>
@@ -103,7 +103,7 @@ function ConnectAws() {
 
           <StepBlock n="2" title="Create a new IAM user" body={
             <>
-              Click <Kbd>Create user</Kbd>. Set <b>User name</b> to <Copyable value="argus-readonly" />. Do <b>not</b> tick "Provide user access to the AWS Management Console" — Argus only needs programmatic access. Click <Kbd>Next</Kbd>.
+              Click <Kbd>Create user</Kbd>. Set <b>User name</b> to <Copyable value="strata-readonly" />. Do <b>not</b> tick "Provide user access to the AWS Management Console" — Strata only needs programmatic access. Click <Kbd>Next</Kbd>.
             </>
           } />
 
@@ -114,19 +114,19 @@ function ConnectAws() {
                 <PolicyCopy name="AWSCloudTrailReadOnlyAccess" />
                 <PolicyCopy name="AmazonGuardDutyReadOnlyAccess" />
               </div>
-              <p className="mt-3 text-xs text-muted-foreground">These are read-only AWS-managed policies. Argus cannot create, modify, or delete anything in your account with them.</p>
+              <p className="mt-3 text-xs text-muted-foreground">These are read-only AWS-managed policies. Strata cannot create, modify, or delete anything in your account with them.</p>
               Click <Kbd>Next</Kbd>, then <Kbd>Create user</Kbd>.
             </>
           } />
 
           <StepBlock n="4" title="Create an access key for the user" body={
             <>
-              Open the <span className="font-mono">argus-readonly</span> user, go to the <b>Security credentials</b> tab, scroll to <b>Access keys</b>, click <Kbd>Create access key</Kbd>. Pick use case <Kbd>Third-party service</Kbd>, tick the confirmation, click <Kbd>Next</Kbd> and <Kbd>Create access key</Kbd>.
+              Open the <span className="font-mono">strata-readonly</span> user, go to the <b>Security credentials</b> tab, scroll to <b>Access keys</b>, click <Kbd>Create access key</Kbd>. Pick use case <Kbd>Third-party service</Kbd>, tick the confirmation, click <Kbd>Next</Kbd> and <Kbd>Create access key</Kbd>.
               <p className="mt-2 text-xs text-[color:var(--warning)]">AWS shows the secret key <b>once</b> — copy both values now.</p>
             </>
           } />
 
-          <StepBlock n="5" title="Paste them into Argus →" body="Use the form on the right. Argus will instantly call sts:GetCallerIdentity to confirm the keys work and identify your AWS account." />
+          <StepBlock n="5" title="Paste them into Strata →" body="Use the form on the right. Strata will instantly call sts:GetCallerIdentity to confirm the keys work and identify your AWS account." />
         </div>
 
         {/* Form */}

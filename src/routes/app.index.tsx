@@ -73,7 +73,7 @@ function Dashboard() {
         <div className="mt-8 rounded-2xl border border-primary/30 bg-primary/5 p-8 text-center card-elevated">
           <Cloud className="mx-auto h-12 w-12 text-primary" />
           <h2 className="mt-4 font-display text-xl font-semibold">Connect your AWS account to start</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Argus needs read-only AWS credentials to begin pulling CloudTrail and GuardDuty signals.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Strata needs read-only AWS credentials to begin pulling CloudTrail and GuardDuty signals.</p>
           <Link to="/app/connect" className="mt-6 inline-flex items-center gap-2 rounded-md bg-primary px-5 py-2.5 font-medium text-primary-foreground hover:opacity-90">
             Open connection wizard <ArrowRight className="h-4 w-4" />
           </Link>

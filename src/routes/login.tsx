@@ -11,7 +11,7 @@ import { useAuth } from "@/lib/auth-context";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
-  head: () => ({ meta: [{ title: "Sign in · ARGUS" }] }),
+  head: () => ({ meta: [{ title: "Sign in · STRATA" }] }),
 });
 
 function LoginPage() {
@@ -66,7 +66,7 @@ function LoginPage() {
         <div className="flex flex-col items-center text-center">
           <Logo size={48} />
           <h1 className="mt-4 font-display text-2xl font-semibold">{mode === "signin" ? "Welcome back" : "Begin watching"}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{mode === "signin" ? "Sign in to your Argus console" : "Create an account to connect AWS"}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{mode === "signin" ? "Sign in to your Strata console" : "Create an account to connect AWS"}</p>
         </div>
 
         <Button onClick={handleGoogle} disabled={loading} variant="outline" className="mt-6 w-full">
@@ -95,7 +95,7 @@ function LoginPage() {
         </form>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          {mode === "signin" ? "New to Argus?" : "Already have an account?"}{" "}
+          {mode === "signin" ? "New to Strata?" : "Already have an account?"}{" "}
           <button onClick={() => setMode(mode === "signin" ? "signup" : "signin")} className="text-primary hover:underline">
             {mode === "signin" ? "Create one" : "Sign in"}
           </button>
