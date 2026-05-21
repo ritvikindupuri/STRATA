@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { signAwsRequest } from "@/lib/aws/sigv4";
+import { encryptSecret, decryptSecret } from "@/lib/aws/crypto";
 
 const REGIONS = [
   "us-east-1", "us-east-2", "us-west-1", "us-west-2",
