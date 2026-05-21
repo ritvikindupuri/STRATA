@@ -61,7 +61,9 @@ export const saveAwsConnection = createServerFn({ method: "POST" })
       label: data.label,
       region: data.region,
       access_key_id: data.accessKeyId,
-      secret_access_key: data.secretAccessKey,
+      // Legacy plaintext column is now a redacted placeholder; real value lives encrypted.
+      secret_access_key: "__encrypted__",
+      encrypted_secret: encryptSecret(data.secretAccessKey),
       aws_account_id: accountId,
       aws_arn: arn,
       status: "connected" as const,
