@@ -13,6 +13,8 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
+import { Route as AppTimelineRouteImport } from './routes/app.timeline'
+import { Route as AppReportsRouteImport } from './routes/app.reports'
 import { Route as AppFindingsRouteImport } from './routes/app.findings'
 import { Route as AppConnectRouteImport } from './routes/app.connect'
 
@@ -36,6 +38,16 @@ const AppIndexRoute = AppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTimelineRoute = AppTimelineRouteImport.update({
+  id: '/timeline',
+  path: '/timeline',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsRoute = AppReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppFindingsRoute = AppFindingsRouteImport.update({
   id: '/findings',
   path: '/findings',
@@ -53,6 +65,8 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/app/connect': typeof AppConnectRoute
   '/app/findings': typeof AppFindingsRoute
+  '/app/reports': typeof AppReportsRoute
+  '/app/timeline': typeof AppTimelineRoute
   '/app/': typeof AppIndexRoute
 }
 export interface FileRoutesByTo {
@@ -60,6 +74,8 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/app/connect': typeof AppConnectRoute
   '/app/findings': typeof AppFindingsRoute
+  '/app/reports': typeof AppReportsRoute
+  '/app/timeline': typeof AppTimelineRoute
   '/app': typeof AppIndexRoute
 }
 export interface FileRoutesById {
@@ -69,6 +85,8 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/app/connect': typeof AppConnectRoute
   '/app/findings': typeof AppFindingsRoute
+  '/app/reports': typeof AppReportsRoute
+  '/app/timeline': typeof AppTimelineRoute
   '/app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
@@ -79,9 +97,18 @@ export interface FileRouteTypes {
     | '/login'
     | '/app/connect'
     | '/app/findings'
+    | '/app/reports'
+    | '/app/timeline'
     | '/app/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/app/connect' | '/app/findings' | '/app'
+  to:
+    | '/'
+    | '/login'
+    | '/app/connect'
+    | '/app/findings'
+    | '/app/reports'
+    | '/app/timeline'
+    | '/app'
   id:
     | '__root__'
     | '/'
@@ -89,6 +116,8 @@ export interface FileRouteTypes {
     | '/login'
     | '/app/connect'
     | '/app/findings'
+    | '/app/reports'
+    | '/app/timeline'
     | '/app/'
   fileRoutesById: FileRoutesById
 }
@@ -128,6 +157,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/timeline': {
+      id: '/app/timeline'
+      path: '/timeline'
+      fullPath: '/app/timeline'
+      preLoaderRoute: typeof AppTimelineRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/reports': {
+      id: '/app/reports'
+      path: '/reports'
+      fullPath: '/app/reports'
+      preLoaderRoute: typeof AppReportsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/findings': {
       id: '/app/findings'
       path: '/findings'
@@ -148,12 +191,16 @@ declare module '@tanstack/react-router' {
 interface AppRouteChildren {
   AppConnectRoute: typeof AppConnectRoute
   AppFindingsRoute: typeof AppFindingsRoute
+  AppReportsRoute: typeof AppReportsRoute
+  AppTimelineRoute: typeof AppTimelineRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppConnectRoute: AppConnectRoute,
   AppFindingsRoute: AppFindingsRoute,
+  AppReportsRoute: AppReportsRoute,
+  AppTimelineRoute: AppTimelineRoute,
   AppIndexRoute: AppIndexRoute,
 }
 
@@ -167,3 +214,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
