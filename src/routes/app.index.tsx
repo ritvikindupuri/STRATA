@@ -14,7 +14,9 @@ export const Route = createFileRoute("/app/")({ component: Dashboard });
 
 function Dashboard() {
   const sync = useServerFn(syncFindings);
+  const autopilot = useServerFn(runAutopilot);
   const [syncing, setSyncing] = useState(false);
+  const [piloting, setPiloting] = useState(false);
 
   const conn = useQuery({
     queryKey: ["aws-conn"],
