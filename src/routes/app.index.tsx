@@ -3,10 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { syncFindings } from "@/lib/aws.functions";
+import { runAutopilot } from "@/lib/agent.functions";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, Activity, ShieldCheck, RefreshCw, Cloud, ArrowRight } from "lucide-react";
+import { AlertTriangle, Activity, ShieldCheck, RefreshCw, Cloud, ArrowRight, Bot } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export const Route = createFileRoute("/app/")({ component: Dashboard });
