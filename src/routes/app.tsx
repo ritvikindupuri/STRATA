@@ -2,7 +2,7 @@ import { createFileRoute, Outlet, Link, useNavigate, useLocation } from "@tansta
 import { useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { LogoMark } from "@/components/Logo";
-import { LayoutDashboard, Cloud, ListTree, LogOut } from "lucide-react";
+import { LayoutDashboard, Cloud, ListTree, LogOut, GitCommitHorizontal, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/app")({ component: AppLayout });
