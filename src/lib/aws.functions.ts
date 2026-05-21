@@ -254,6 +254,11 @@ async function loadConnection(userId: string) {
     .select("*")
     .eq("user_id", userId)
     .maybeSingle();
+  if (!data) return null;
+  if (data.encrypted_secret) {
+    try { return { ...data, secret_access_key: decryptSecret(data.encrypted_secret) }; }
+    catch { /* fall through to plaintext fallback */ }
+  }
   return data;
 }
 
