@@ -84,7 +84,7 @@
   .font-display { font-family: var(--font-display); }
   .text-gradient { background: var(--gradient-glow); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .bg-grid {
-    background-image: linear-gradient(oklch(0.82 0.16 200 / 0.06) 1px, transparent 1px), linear-gradient(90deg, oklch(0.82 0.16 200 / 0.06) 1px, transparent 1px);
+    background-image: linear-gradient(oklch(0.78 0.16 60 / 0.05) 1px, transparent 1px), linear-gradient(90deg, oklch(0.78 0.16 60 / 0.05) 1px, transparent 1px);
     background-size: 48px 48px;
   }
   .glow-ring { box-shadow: var(--shadow-glow); }
