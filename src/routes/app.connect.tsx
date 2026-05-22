@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { saveAwsConnection, revalidateAwsConnection, disconnectAws } from "@/lib/aws.functions";
-import { setAutoResponse } from "@/lib/agent.functions";
+import { setAutoResponse, runAutopilot } from "@/lib/agent.functions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ function ConnectAws() {
   const save = useServerFn(saveAwsConnection);
   const revalidate = useServerFn(revalidateAwsConnection);
   const disconnect = useServerFn(disconnectAws);
+  const autopilot = useServerFn(runAutopilot);
 
   const conn = useQuery({
     queryKey: ["aws-conn"],
@@ -42,9 +43,13 @@ function ConnectAws() {
     try {
       const r: any = await save({ data: { label, region, accessKeyId: accessKeyId.trim(), secretAccessKey: secretAccessKey.trim() } });
       if (!r.ok) { toast.error(r.error ?? "Validation failed"); return; }
-      toast.success(`Connected to AWS account ${r.accountId}`);
+      toast.success(`Connected to AWS account ${r.accountId} — agents starting now`);
       setAccessKeyId(""); setSecretAccessKey("");
       conn.refetch();
+      // Autonomous: kick off the first agent cycle immediately. No user button needed.
+      autopilot().then((rr: any) => {
+        if (rr?.ok) toast.success(`Agents ready · ${rr.rules_created} rules drafted · ${rr.events_synced} events analyzed`);
+      }).catch(() => {});
     } catch (err: any) {
       toast.error(err.message ?? "Failed");
     } finally { setSubmitting(false); }

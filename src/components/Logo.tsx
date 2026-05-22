@@ -9,12 +9,12 @@ export function Logo({ className, size = 28, animated = false }: { className?: s
     <svg width={size} height={size} viewBox="0 0 64 64" fill="none" className={cn(className)} aria-hidden>
       <defs>
         <linearGradient id="strataGrad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="oklch(0.82 0.16 200)" />
-          <stop offset="100%" stopColor="oklch(0.65 0.22 295)" />
+          <stop offset="0%" stopColor="oklch(0.86 0.16 70)" />
+          <stop offset="100%" stopColor="oklch(0.74 0.11 195)" />
         </linearGradient>
         <radialGradient id="strataCore" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="oklch(0.95 0.10 200)" />
-          <stop offset="100%" stopColor="oklch(0.65 0.22 295 / 0)" />
+          <stop offset="0%" stopColor="oklch(0.93 0.13 75)" />
+          <stop offset="100%" stopColor="oklch(0.74 0.11 195 / 0)" />
         </radialGradient>
       </defs>
 
@@ -45,7 +45,7 @@ export function Logo({ className, size = 28, animated = false }: { className?: s
       {/* Iris glow */}
       <circle cx="32" cy="32" r="9" fill="url(#strataCore)" />
       {/* Pupil / scan dot */}
-      <circle cx="32" cy="32" r="2.6" fill="oklch(0.95 0.10 200)">
+      <circle cx="32" cy="32" r="2.6" fill="oklch(0.93 0.13 75)">
         {animated && (
           <animate attributeName="opacity" values="1;0.35;1" dur="2.4s" repeatCount="indefinite" />
         )}

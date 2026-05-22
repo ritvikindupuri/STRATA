@@ -64,9 +64,9 @@ export function HeroCanvas() {
       // Faint scan sweep
       const sweep = (Math.sin(time * 0.0006) + 1) / 2;
       const grad = ctx.createLinearGradient(0, 0, w, 0);
-      grad.addColorStop(Math.max(0, sweep - 0.15), `oklch(0.82 0.16 200 / 0)`);
-      grad.addColorStop(sweep, `oklch(0.82 0.16 200 / 0.05)`);
-      grad.addColorStop(Math.min(1, sweep + 0.15), `oklch(0.82 0.16 200 / 0)`);
+      grad.addColorStop(Math.max(0, sweep - 0.15), `oklch(0.82 0.16 60 / 0)`);
+      grad.addColorStop(sweep, `oklch(0.82 0.16 60 / 0.05)`);
+      grad.addColorStop(Math.min(1, sweep + 0.15), `oklch(0.82 0.16 60 / 0)`);
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
 
@@ -80,7 +80,7 @@ export function HeroCanvas() {
         const x1 = cx + lw / 2 + tilt;
         const alpha = 0.15 + (1 - depth) * 0.4;
 
-        ctx.strokeStyle = `oklch(0.82 0.16 200 / ${alpha})`;
+        ctx.strokeStyle = `oklch(0.82 0.16 60 / ${alpha})`;
         ctx.lineWidth = 1 + (1 - depth) * 0.6;
         ctx.beginPath();
         ctx.moveTo(x0, y);
@@ -89,7 +89,7 @@ export function HeroCanvas() {
 
         // Endpoint nodes
         for (const ex of [x0, x1]) {
-          ctx.fillStyle = `oklch(0.82 0.16 200 / ${alpha + 0.2})`;
+          ctx.fillStyle = `oklch(0.82 0.16 60 / ${alpha + 0.2})`;
           ctx.beginPath();
           ctx.arc(ex, y, 2.2, 0, Math.PI * 2);
           ctx.fill();

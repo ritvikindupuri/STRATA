@@ -2,21 +2,17 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { syncFindings } from "@/lib/aws.functions";
 import { runAutopilot } from "@/lib/agent.functions";
-import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, Activity, ShieldCheck, RefreshCw, Cloud, ArrowRight, Bot } from "lucide-react";
+import { AlertTriangle, Activity, ShieldCheck, Cloud, ArrowRight, Bot } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export const Route = createFileRoute("/app/")({ component: Dashboard });
 
 function Dashboard() {
-  const sync = useServerFn(syncFindings);
   const autopilot = useServerFn(runAutopilot);
-  const [syncing, setSyncing] = useState(false);
-  const [piloting, setPiloting] = useState(false);
+  const ranRef = useRef(false);
 
   const conn = useQuery({
     queryKey: ["aws-conn"],
@@ -40,22 +36,31 @@ function Dashboard() {
 
   const stats = computeStats(findings.data ?? []);
 
-  const handleSync = async () => {
-    setSyncing(true);
-    const t = toast.loading("Syncing CloudTrail + GuardDuty…");
-    try {
-      const r: any = await sync();
-      toast.dismiss(t);
-      if (!r.ok) { toast.error(r.error ?? "Sync failed"); return; }
-      toast.success(`Synced — ${r.cloudtrail} CloudTrail · ${r.guardduty} GuardDuty · ${r.analyzed} AI-analyzed`);
-      findings.refetch();
-    } catch (e: any) {
-      toast.dismiss(t);
-      toast.error(e.message ?? "Sync failed");
-    } finally {
-      setSyncing(false);
+  // Autonomous: once an AWS account is connected, agents run on their own.
+  // Kick off a cycle when the dashboard first sees a connected account, then
+  // continue on a steady cadence in the background.
+  useEffect(() => {
+    if (conn.data?.status !== "connected") return;
+    const trigger = async (silent = false) => {
+      const t = silent ? null : toast.loading("Agents running — rules · sync · triage · contain · report");
+      try {
+        const r: any = await autopilot();
+        if (t) toast.dismiss(t);
+        if (r?.ok && !silent) {
+          toast.success(`Agents complete · ${r.rules_created} rules · ${r.events_synced} events · ${r.blocked} blocked · ${r.reports} reports`);
+        }
+        findings.refetch();
+      } catch {
+        if (t) toast.dismiss(t);
+      }
+    };
+    if (!ranRef.current) {
+      ranRef.current = true;
+      trigger(false);
     }
-  };
+    const interval = setInterval(() => trigger(true), 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [conn.data?.status]);
 
   return (
     <div className="p-8">
@@ -65,29 +70,14 @@ function Dashboard() {
           <h1 className="mt-1 font-display text-3xl font-semibold">Threat overview</h1>
         </div>
         {conn.data?.status === "connected" && (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={handleSync} disabled={syncing || piloting}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-              {syncing ? "Syncing…" : "Sync"}
-            </Button>
-            <Button onClick={async () => {
-              setPiloting(true);
-              const t = toast.loading("Autopilot running — rules · sync · triage · contain · report");
-              try {
-                const r: any = await autopilot();
-                toast.dismiss(t);
-                if (!r.ok) { toast.error(r.error ?? "Autopilot failed"); return; }
-                toast.success(`Autopilot done · ${r.rules_created} rules · ${r.events_synced} events · ${r.blocked} blocked · ${r.reports} reports`);
-                findings.refetch();
-              } catch (e: any) { toast.dismiss(t); toast.error(e.message); }
-              finally { setPiloting(false); }
-            }} disabled={syncing || piloting} className="glow-ring">
-              <Bot className={`mr-2 h-4 w-4 ${piloting ? "animate-pulse" : ""}`} />
-              {piloting ? "Agents working…" : "Run Autopilot"}
-            </Button>
+          <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3.5 py-1.5">
+            <Bot className="h-3.5 w-3.5 text-primary animate-pulse" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-primary">agents active</span>
           </div>
         )}
       </header>
+
+
 
       {!conn.data || conn.data.status !== "connected" ? (
         <div className="mt-8 rounded-2xl border border-primary/30 bg-primary/5 p-8 text-center card-elevated">
@@ -121,7 +111,7 @@ function Dashboard() {
               {(findings.data ?? []).slice(0, 8).map((f: any) => <FindingRow key={f.id} f={f} />)}
               {(findings.data ?? []).length === 0 && (
                 <div className="rounded-lg border border-dashed border-border bg-card/30 p-8 text-center text-sm text-muted-foreground">
-                  No findings yet. Hit <span className="text-primary">Sync now</span> to pull the latest events.
+                  No findings yet. Agents are pulling your latest CloudTrail and GuardDuty signals — this view will update automatically.
                 </div>
               )}
             </div>
