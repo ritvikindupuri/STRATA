@@ -111,7 +111,7 @@ function Dashboard() {
               {(findings.data ?? []).slice(0, 8).map((f: any) => <FindingRow key={f.id} f={f} />)}
               {(findings.data ?? []).length === 0 && (
                 <div className="rounded-lg border border-dashed border-border bg-card/30 p-8 text-center text-sm text-muted-foreground">
-                  No findings yet. Hit <span className="text-primary">Sync now</span> to pull the latest events.
+                  No findings yet. Agents are pulling your latest CloudTrail and GuardDuty signals — this view will update automatically.
                 </div>
               )}
             </div>
