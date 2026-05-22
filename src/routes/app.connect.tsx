@@ -43,9 +43,13 @@ function ConnectAws() {
     try {
       const r: any = await save({ data: { label, region, accessKeyId: accessKeyId.trim(), secretAccessKey: secretAccessKey.trim() } });
       if (!r.ok) { toast.error(r.error ?? "Validation failed"); return; }
-      toast.success(`Connected to AWS account ${r.accountId}`);
+      toast.success(`Connected to AWS account ${r.accountId} — agents starting now`);
       setAccessKeyId(""); setSecretAccessKey("");
       conn.refetch();
+      // Autonomous: kick off the first agent cycle immediately. No user button needed.
+      autopilot().then((rr: any) => {
+        if (rr?.ok) toast.success(`Agents ready · ${rr.rules_created} rules drafted · ${rr.events_synced} events analyzed`);
+      }).catch(() => {});
     } catch (err: any) {
       toast.error(err.message ?? "Failed");
     } finally { setSubmitting(false); }
