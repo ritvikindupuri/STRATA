@@ -24,6 +24,7 @@ function ConnectAws() {
   const save = useServerFn(saveAwsConnection);
   const revalidate = useServerFn(revalidateAwsConnection);
   const disconnect = useServerFn(disconnectAws);
+  const autopilot = useServerFn(runAutopilot);
 
   const conn = useQuery({
     queryKey: ["aws-conn"],
