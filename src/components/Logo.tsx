@@ -45,7 +45,7 @@ export function Logo({ className, size = 28, animated = false }: { className?: s
       {/* Iris glow */}
       <circle cx="32" cy="32" r="9" fill="url(#strataCore)" />
       {/* Pupil / scan dot */}
-      <circle cx="32" cy="32" r="2.6" fill="oklch(0.95 0.10 200)">
+      <circle cx="32" cy="32" r="2.6" fill="oklch(0.93 0.13 75)">
         {animated && (
           <animate attributeName="opacity" values="1;0.35;1" dur="2.4s" repeatCount="indefinite" />
         )}
