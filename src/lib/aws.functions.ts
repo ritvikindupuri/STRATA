@@ -6,16 +6,27 @@ import { signAwsRequest } from "@/lib/aws/sigv4";
 import { encryptSecret, decryptSecret } from "@/lib/aws/crypto";
 
 const REGIONS = [
-  "us-east-1", "us-east-2", "us-west-1", "us-west-2",
-  "eu-west-1", "eu-central-1", "ap-southeast-1", "ap-southeast-2",
-  "ap-northeast-1", "sa-east-1", "ca-central-1",
+  "us-east-1",
+  "us-east-2",
+  "us-west-1",
+  "us-west-2",
+  "eu-west-1",
+  "eu-central-1",
+  "ap-southeast-1",
+  "ap-southeast-2",
+  "ap-northeast-1",
+  "sa-east-1",
+  "ca-central-1",
 ] as const;
 
 // ---------- Validate + save credentials ----------
 const SaveSchema = z.object({
   label: z.string().trim().min(1).max(60).default("Primary AWS Account"),
   region: z.enum(REGIONS),
-  accessKeyId: z.string().trim().regex(/^[A-Z0-9]{16,32}$/, "Invalid AWS Access Key ID format"),
+  accessKeyId: z
+    .string()
+    .trim()
+    .regex(/^[A-Z0-9]{16,32}$/, "Invalid AWS Access Key ID format"),
   secretAccessKey: z.string().trim().min(20).max(128),
 });
 
@@ -72,11 +83,18 @@ export const saveAwsConnection = createServerFn({ method: "POST" })
     };
 
     if (existing) {
-      const { error } = await supabaseAdmin.from("aws_connections").update(payload).eq("id", existing.id);
+      const { error } = await supabaseAdmin
+        .from("aws_connections")
+        .update(payload)
+        .eq("id", existing.id);
       if (error) return { ok: false as const, error: error.message };
       return { ok: true as const, accountId, arn, connectionId: existing.id };
     } else {
-      const { data: ins, error } = await supabaseAdmin.from("aws_connections").insert(payload).select("id").single();
+      const { data: ins, error } = await supabaseAdmin
+        .from("aws_connections")
+        .insert(payload)
+        .select("id")
+        .single();
       if (error) return { ok: false as const, error: error.message };
       return { ok: true as const, accountId, arn, connectionId: ins.id };
     }
@@ -91,13 +109,19 @@ export const revalidateAwsConnection = createServerFn({ method: "POST" })
 
     const body = "Action=GetCallerIdentity&Version=2011-06-15";
     const signed = await signAwsRequest({
-      method: "POST", service: "sts", region: conn.region, host: "sts.amazonaws.com",
+      method: "POST",
+      service: "sts",
+      region: conn.region,
+      host: "sts.amazonaws.com",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body, accessKeyId: conn.access_key_id, secretAccessKey: conn.secret_access_key,
+      body,
+      accessKeyId: conn.access_key_id,
+      secretAccessKey: conn.secret_access_key,
     });
     const res = await fetch(signed.url, { method: "POST", headers: signed.headers, body });
     const text = await res.text();
-    if (!res.ok) return { ok: false as const, error: extractAwsError(text) || `HTTP ${res.status}` };
+    if (!res.ok)
+      return { ok: false as const, error: extractAwsError(text) || `HTTP ${res.status}` };
     return { ok: true as const, accountId: conn.aws_account_id, arn: conn.aws_arn };
   });
 
@@ -126,16 +150,23 @@ export const syncFindings = createServerFn({ method: "POST" })
         EndTime: Math.floor(Date.now() / 1000),
       });
       const ctSigned = await signAwsRequest({
-        method: "POST", service: "cloudtrail", region: conn.region,
+        method: "POST",
+        service: "cloudtrail",
+        region: conn.region,
         host: `cloudtrail.${conn.region}.amazonaws.com`,
         headers: {
           "content-type": "application/x-amz-json-1.1",
           "x-amz-target": "CloudTrail_20131101.LookupEvents",
         },
         body: ctBody,
-        accessKeyId: conn.access_key_id, secretAccessKey: conn.secret_access_key,
+        accessKeyId: conn.access_key_id,
+        secretAccessKey: conn.secret_access_key,
       });
-      const ctRes = await fetch(ctSigned.url, { method: "POST", headers: ctSigned.headers, body: ctBody });
+      const ctRes = await fetch(ctSigned.url, {
+        method: "POST",
+        headers: ctSigned.headers,
+        body: ctBody,
+      });
       const ctJson: any = await ctRes.json().catch(() => ({}));
       if (!ctRes.ok) results.errors.push(`CloudTrail: ${ctJson?.Message || ctRes.status}`);
       else {
@@ -158,7 +189,10 @@ export const syncFindings = createServerFn({ method: "POST" })
           };
           const { data: inserted } = await supabaseAdmin
             .from("findings")
-            .upsert(row, { onConflict: "connection_id,source,external_id", ignoreDuplicates: false })
+            .upsert(row, {
+              onConflict: "connection_id,source,external_id",
+              ignoreDuplicates: false,
+            })
             .select("id, ai_analyzed_at, event_name, source_ip, username, raw")
             .single();
           if (inserted) {
@@ -177,37 +211,54 @@ export const syncFindings = createServerFn({ method: "POST" })
     // ---- GuardDuty: list detectors then list findings (best-effort; skip if not enabled) ----
     try {
       const detSigned = await signAwsRequest({
-        method: "GET", service: "guardduty", region: conn.region,
+        method: "GET",
+        service: "guardduty",
+        region: conn.region,
         host: `guardduty.${conn.region}.amazonaws.com`,
         path: "/detector",
-        accessKeyId: conn.access_key_id, secretAccessKey: conn.secret_access_key,
+        accessKeyId: conn.access_key_id,
+        secretAccessKey: conn.secret_access_key,
       });
       const detRes = await fetch(detSigned.url, { headers: detSigned.headers });
       const detJson: any = await detRes.json().catch(() => ({}));
       if (detRes.ok && Array.isArray(detJson.DetectorIds)) {
         for (const detectorId of detJson.DetectorIds) {
           const listSigned = await signAwsRequest({
-            method: "POST", service: "guardduty", region: conn.region,
+            method: "POST",
+            service: "guardduty",
+            region: conn.region,
             host: `guardduty.${conn.region}.amazonaws.com`,
             path: `/detector/${detectorId}/findings`,
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ MaxResults: 50 }),
-            accessKeyId: conn.access_key_id, secretAccessKey: conn.secret_access_key,
+            accessKeyId: conn.access_key_id,
+            secretAccessKey: conn.secret_access_key,
           });
-          const listRes = await fetch(listSigned.url, { method: "POST", headers: listSigned.headers, body: JSON.stringify({ MaxResults: 50 }) });
+          const listRes = await fetch(listSigned.url, {
+            method: "POST",
+            headers: listSigned.headers,
+            body: JSON.stringify({ MaxResults: 50 }),
+          });
           const listJson: any = await listRes.json().catch(() => ({}));
           const ids: string[] = listJson.FindingIds ?? [];
           if (!ids.length) continue;
           const getBody = JSON.stringify({ FindingIds: ids });
           const getSigned = await signAwsRequest({
-            method: "POST", service: "guardduty", region: conn.region,
+            method: "POST",
+            service: "guardduty",
+            region: conn.region,
             host: `guardduty.${conn.region}.amazonaws.com`,
             path: `/detector/${detectorId}/findings/get`,
             headers: { "content-type": "application/json" },
             body: getBody,
-            accessKeyId: conn.access_key_id, secretAccessKey: conn.secret_access_key,
+            accessKeyId: conn.access_key_id,
+            secretAccessKey: conn.secret_access_key,
           });
-          const getRes = await fetch(getSigned.url, { method: "POST", headers: getSigned.headers, body: getBody });
+          const getRes = await fetch(getSigned.url, {
+            method: "POST",
+            headers: getSigned.headers,
+            body: getBody,
+          });
           const getJson: any = await getRes.json().catch(() => ({}));
           for (const f of getJson.Findings ?? []) {
             const row = {
@@ -219,7 +270,8 @@ export const syncFindings = createServerFn({ method: "POST" })
               event_time: f.UpdatedAt ?? f.CreatedAt ?? new Date().toISOString(),
               region: f.Region ?? conn.region,
               username: f.Resource?.AccessKeyDetails?.UserName ?? null,
-              source_ip: f.Service?.Action?.NetworkConnectionAction?.RemoteIpDetails?.IpAddressV4 ?? null,
+              source_ip:
+                f.Service?.Action?.NetworkConnectionAction?.RemoteIpDetails?.IpAddressV4 ?? null,
               user_agent: null,
               severity: f.Severity,
               title: f.Title,
@@ -256,8 +308,11 @@ async function loadConnection(userId: string) {
     .maybeSingle();
   if (!data) return null;
   if (data.encrypted_secret) {
-    try { return { ...data, secret_access_key: decryptSecret(data.encrypted_secret) }; }
-    catch { /* fall through to plaintext fallback */ }
+    try {
+      return { ...data, secret_access_key: decryptSecret(data.encrypted_secret) };
+    } catch {
+      /* fall through to plaintext fallback */
+    }
   }
   return data;
 }
@@ -265,7 +320,11 @@ async function loadConnection(userId: string) {
 function safeJson(s: any) {
   if (!s) return null;
   if (typeof s !== "string") return s;
-  try { return JSON.parse(s); } catch { return null; }
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
 }
 
 function extractAwsError(text: string): string | null {
@@ -274,18 +333,40 @@ function extractAwsError(text: string): string | null {
   try {
     const j = JSON.parse(text);
     return j.Message || j.message || j.__type || null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function shouldAnalyzeCloudTrail(eventName: string): boolean {
   // Focus AI budget on security-relevant events
   const watch = [
-    "ConsoleLogin", "AssumeRole", "CreateUser", "CreateAccessKey", "DeleteTrail",
-    "StopLogging", "PutBucketPolicy", "PutBucketAcl", "AuthorizeSecurityGroupIngress",
-    "AuthorizeSecurityGroupEgress", "CreatePolicy", "AttachUserPolicy", "AttachRolePolicy",
-    "PassRole", "DeactivateMFADevice", "DeleteUserPolicy", "UpdateAssumeRolePolicy",
-    "RunInstances", "TerminateInstances", "CreateLoginProfile", "UpdateLoginProfile",
-    "PutUserPolicy", "PutRolePolicy", "GetSecretValue", "Decrypt", "Invoke",
+    "ConsoleLogin",
+    "AssumeRole",
+    "CreateUser",
+    "CreateAccessKey",
+    "DeleteTrail",
+    "StopLogging",
+    "PutBucketPolicy",
+    "PutBucketAcl",
+    "AuthorizeSecurityGroupIngress",
+    "AuthorizeSecurityGroupEgress",
+    "CreatePolicy",
+    "AttachUserPolicy",
+    "AttachRolePolicy",
+    "PassRole",
+    "DeactivateMFADevice",
+    "DeleteUserPolicy",
+    "UpdateAssumeRolePolicy",
+    "RunInstances",
+    "TerminateInstances",
+    "CreateLoginProfile",
+    "UpdateLoginProfile",
+    "PutUserPolicy",
+    "PutRolePolicy",
+    "GetSecretValue",
+    "Decrypt",
+    "Invoke",
   ];
   return watch.some((w) => eventName?.includes(w));
 }
@@ -311,7 +392,11 @@ ${JSON.stringify(row.raw ?? row, null, 2).slice(0, 6000)}`;
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: "You are a precise cloud security analyst. Respond with ONLY valid JSON, no markdown, no prose." },
+          {
+            role: "system",
+            content:
+              "You are a precise cloud security analyst. Respond with ONLY valid JSON, no markdown, no prose.",
+          },
           { role: "user", content: prompt },
         ],
         temperature: 0.2,
@@ -322,13 +407,16 @@ ${JSON.stringify(row.raw ?? row, null, 2).slice(0, 6000)}`;
     const content = j?.choices?.[0]?.message?.content ?? "";
     const clean = content.replace(/^```json\s*|\s*```$/g, "").trim();
     const parsed = JSON.parse(clean);
-    await supabaseAdmin.from("findings").update({
-      ai_severity: String(parsed.severity ?? "low").toLowerCase(),
-      ai_category: parsed.category ?? "Unknown",
-      ai_summary: parsed.summary ?? "",
-      ai_remediation: parsed.remediation ?? "",
-      ai_analyzed_at: new Date().toISOString(),
-    }).eq("id", findingId);
+    await supabaseAdmin
+      .from("findings")
+      .update({
+        ai_severity: String(parsed.severity ?? "low").toLowerCase(),
+        ai_category: parsed.category ?? "Unknown",
+        ai_summary: parsed.summary ?? "",
+        ai_remediation: parsed.remediation ?? "",
+        ai_analyzed_at: new Date().toISOString(),
+      })
+      .eq("id", findingId);
   } catch {
     // best-effort
   }

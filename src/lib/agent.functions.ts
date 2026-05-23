@@ -1,4 +1,4 @@
-// Autonomous IDS agent. Runs the full loop: generate rules → sync events →
+// Autonomous Threat Response agent. Runs the full loop: generate rules → sync events →
 // triage with AI → execute response actions → cluster findings into incident
 // reports. Every step is logged to agent_actions.
 
@@ -36,10 +36,19 @@ export const runAutopilot = createServerFn({ method: "POST" })
       if (!existing.data?.length) {
         const created = await generateRules(userId, conn.id);
         stats.rules_created = created;
-        await logAction(userId, conn.id, null, "rule_create", "ruleset", "success",
-          `Generated ${created} AI detection rules tailored to this AWS account`);
+        await logAction(
+          userId,
+          conn.id,
+          null,
+          "rule_create",
+          "ruleset",
+          "success",
+          `Generated ${created} AI detection rules tailored to this AWS account`,
+        );
       }
-    } catch (e: any) { errors.push(`rules: ${e.message}`); }
+    } catch (e: any) {
+      errors.push(`rules: ${e.message}`);
+    }
 
     // 2. SYNC — pull CloudTrail + GuardDuty (existing function, AI-analyzed)
     try {
@@ -47,26 +56,37 @@ export const runAutopilot = createServerFn({ method: "POST" })
       if (syncRes?.ok) {
         stats.events_synced = (syncRes.cloudtrail ?? 0) + (syncRes.guardduty ?? 0);
       } else if (syncRes?.error) errors.push(`sync: ${syncRes.error}`);
-    } catch (e: any) { errors.push(`sync: ${e.message}`); }
+    } catch (e: any) {
+      errors.push(`sync: ${e.message}`);
+    }
 
     // 3. CONTAINMENT — auto-respond to critical IAM-key findings
     if (conn.auto_response_enabled) {
       try {
         stats.blocked = await autoContain(userId, conn);
-      } catch (e: any) { errors.push(`contain: ${e.message}`); }
+      } catch (e: any) {
+        errors.push(`contain: ${e.message}`);
+      }
     }
 
     // 4. REPORT — cluster recent high/critical findings into an incident report
     try {
       const created = await generateIncidentReport(userId, conn.id);
       if (created) stats.reports = 1;
-    } catch (e: any) { errors.push(`report: ${e.message}`); }
+    } catch (e: any) {
+      errors.push(`report: ${e.message}`);
+    }
 
     if (runId) {
-      await supabaseAdmin.from("agent_runs").update({
-        status: errors.length ? "completed_with_errors" : "completed",
-        stats, errors, finished_at: new Date().toISOString(),
-      }).eq("id", runId);
+      await supabaseAdmin
+        .from("agent_runs")
+        .update({
+          status: errors.length ? "completed_with_errors" : "completed",
+          stats,
+          errors,
+          finished_at: new Date().toISOString(),
+        })
+        .eq("id", runId);
     }
 
     return { ok: true as const, ...stats, errors };
@@ -80,7 +100,8 @@ export const setAutoResponse = createServerFn({ method: "POST" })
     return { enabled: !!i.enabled };
   })
   .handler(async ({ data, context }) => {
-    await supabaseAdmin.from("aws_connections")
+    await supabaseAdmin
+      .from("aws_connections")
       .update({ auto_response_enabled: data.enabled })
       .eq("user_id", context.userId);
     return { ok: true as const };
@@ -108,23 +129,38 @@ async function loadConnection(userId: string) {
   if (!data) return null;
   // Prefer encrypted secret, fall back to legacy plaintext
   const secret = data.encrypted_secret
-    ? safeDecrypt(data.encrypted_secret) ?? data.secret_access_key
+    ? (safeDecrypt(data.encrypted_secret) ?? data.secret_access_key)
     : data.secret_access_key;
   return { ...data, secret_access_key: secret };
 }
 
 function safeDecrypt(payload: string): string | null {
-  try { return decryptSecret(payload); } catch { return null; }
+  try {
+    return decryptSecret(payload);
+  } catch {
+    return null;
+  }
 }
 
 async function logAction(
-  userId: string, connectionId: string | null, findingId: string | null,
-  type: string, target: string | null, status: string, reasoning: string,
+  userId: string,
+  connectionId: string | null,
+  findingId: string | null,
+  type: string,
+  target: string | null,
+  status: string,
+  reasoning: string,
   details: Record<string, any> = {},
 ) {
   await supabaseAdmin.from("agent_actions").insert({
-    user_id: userId, connection_id: connectionId, finding_id: findingId,
-    action_type: type, target, status, reasoning, details,
+    user_id: userId,
+    connection_id: connectionId,
+    finding_id: findingId,
+    action_type: type,
+    target,
+    status,
+    reasoning,
+    details,
   });
 }
 
@@ -132,7 +168,7 @@ async function logAction(
 async function generateRules(userId: string, connectionId: string): Promise<number> {
   const apiKey = process.env.LOVABLE_API_KEY;
   if (!apiKey) return 0;
-  const prompt = `You are designing a baseline AWS cloud intrusion detection ruleset.
+  const prompt = `You are designing a baseline AWS cloud AI-driven threat detection ruleset.
 Output STRICT JSON: { "rules": [ { "name": string, "description": string, "mitre_technique": string, "severity": "low|medium|high|critical", "match_event_names": string[], "match_keywords": string[] } ] }
 Generate 8-10 high-signal detection rules covering: credential exfiltration, privilege escalation, log tampering, persistence, defense evasion, suspicious console logins, security group exposure, S3/KMS data access.`;
 
@@ -151,9 +187,15 @@ Generate 8-10 high-signal detection rules covering: credential exfiltration, pri
   });
   if (!res.ok) return 0;
   const j: any = await res.json();
-  const content = (j?.choices?.[0]?.message?.content ?? "").replace(/^```json\s*|\s*```$/g, "").trim();
+  const content = (j?.choices?.[0]?.message?.content ?? "")
+    .replace(/^```json\s*|\s*```$/g, "")
+    .trim();
   let parsed: any;
-  try { parsed = JSON.parse(content); } catch { return 0; }
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return 0;
+  }
   const rules = Array.isArray(parsed?.rules) ? parsed.rules : [];
   if (!rules.length) return 0;
   const rows = rules.map((r: any) => ({
@@ -188,14 +230,29 @@ async function autoContain(userId: string, conn: any): Promise<number> {
     if (!target) continue;
     // Avoid blocking the IAM user Strata itself uses
     if (conn.aws_arn?.includes(target.userName)) {
-      await logAction(userId, conn.id, f.id, "block", target.accessKeyId, "skipped",
-        "Refused to disable Strata's own access key");
+      await logAction(
+        userId,
+        conn.id,
+        f.id,
+        "block",
+        target.accessKeyId,
+        "skipped",
+        "Refused to disable Strata's own access key",
+      );
       continue;
     }
     const ok = await deactivateAccessKey(conn, target.userName, target.accessKeyId);
-    await logAction(userId, conn.id, f.id, "block", `${target.userName}:${target.accessKeyId}`,
+    await logAction(
+      userId,
+      conn.id,
+      f.id,
+      "block",
+      `${target.userName}:${target.accessKeyId}`,
       ok ? "success" : "failed",
-      ok ? `Deactivated compromised access key for IAM user ${target.userName}` : `Failed to disable access key — verify iam:UpdateAccessKey permission`);
+      ok
+        ? `Deactivated compromised access key for IAM user ${target.userName}`
+        : `Failed to disable access key — verify iam:UpdateAccessKey permission`,
+    );
     if (ok) blocked++;
   }
   return blocked;
@@ -203,24 +260,36 @@ async function autoContain(userId: string, conn: any): Promise<number> {
 
 function extractCompromisedKey(f: any): { userName: string; accessKeyId: string } | null {
   const raw = f.raw ?? {};
-  const userName = f.username ?? raw?.userIdentity?.userName ?? raw?.Resource?.AccessKeyDetails?.UserName;
-  const accessKeyId = raw?.userIdentity?.accessKeyId ?? raw?.Resource?.AccessKeyDetails?.AccessKeyId;
+  const userName =
+    f.username ?? raw?.userIdentity?.userName ?? raw?.Resource?.AccessKeyDetails?.UserName;
+  const accessKeyId =
+    raw?.userIdentity?.accessKeyId ?? raw?.Resource?.AccessKeyDetails?.AccessKeyId;
   if (!userName || !accessKeyId) return null;
   return { userName, accessKeyId };
 }
 
-async function deactivateAccessKey(conn: any, userName: string, accessKeyId: string): Promise<boolean> {
+async function deactivateAccessKey(
+  conn: any,
+  userName: string,
+  accessKeyId: string,
+): Promise<boolean> {
   const body = `Action=UpdateAccessKey&UserName=${encodeURIComponent(userName)}&AccessKeyId=${encodeURIComponent(accessKeyId)}&Status=Inactive&Version=2010-05-08`;
   try {
     const signed = await signAwsRequest({
-      method: "POST", service: "iam", region: "us-east-1", host: "iam.amazonaws.com",
+      method: "POST",
+      service: "iam",
+      region: "us-east-1",
+      host: "iam.amazonaws.com",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body,
-      accessKeyId: conn.access_key_id, secretAccessKey: conn.secret_access_key,
+      accessKeyId: conn.access_key_id,
+      secretAccessKey: conn.secret_access_key,
     });
     const res = await fetch(signed.url, { method: "POST", headers: signed.headers, body });
     return res.ok;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 // ---------- Incident report generation ----------
@@ -230,7 +299,9 @@ async function generateIncidentReport(userId: string, connectionId: string): Pro
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { data: findings } = await supabaseAdmin
     .from("findings")
-    .select("id,title,event_name,event_time,username,source_ip,ai_severity,ai_category,ai_summary,source,region")
+    .select(
+      "id,title,event_name,event_time,username,source_ip,ai_severity,ai_category,ai_summary,source,region",
+    )
     .eq("user_id", userId)
     .in("ai_severity", ["high", "critical"])
     .gte("created_at", since)
@@ -278,9 +349,15 @@ ${JSON.stringify(findings, null, 2).slice(0, 9000)}`;
   });
   if (!res.ok) return false;
   const j: any = await res.json();
-  const content = (j?.choices?.[0]?.message?.content ?? "").replace(/^```json\s*|\s*```$/g, "").trim();
+  const content = (j?.choices?.[0]?.message?.content ?? "")
+    .replace(/^```json\s*|\s*```$/g, "")
+    .trim();
   let parsed: any;
-  try { parsed = JSON.parse(content); } catch { return false; }
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return false;
+  }
 
   await supabaseAdmin.from("incident_reports").insert({
     user_id: userId,
@@ -295,7 +372,14 @@ ${JSON.stringify(findings, null, 2).slice(0, 9000)}`;
     related_finding_ids: findings.map((f) => f.id),
   });
 
-  await logAction(userId, connectionId, null, "report", parsed.title ?? null, "success",
-    "Generated AI incident report correlating recent high-severity findings");
+  await logAction(
+    userId,
+    connectionId,
+    null,
+    "report",
+    parsed.title ?? null,
+    "success",
+    "Generated AI incident report correlating recent high-severity findings",
+  );
   return true;
 }

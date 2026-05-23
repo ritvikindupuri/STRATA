@@ -29,10 +29,30 @@ function Landing() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <LogoMark animated />
           <nav className="hidden items-center gap-8 md:flex">
-            <a href="#platform" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Platform</a>
-            <a href="#agents" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Agents</a>
-            <a href="#how" className="text-sm text-muted-foreground hover:text-foreground transition-colors">How it works</a>
-            <a href="#security" className="text-sm text-muted-foreground hover:text-foreground transition-colors">Security</a>
+            <a
+              href="#platform"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Platform
+            </a>
+            <a
+              href="#agents"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Agents
+            </a>
+            <a
+              href="#how"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              How it works
+            </a>
+            <a
+              href="#security"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Security
+            </a>
           </nav>
           <Link
             to="/login"
@@ -47,30 +67,36 @@ function Landing() {
       {/* HERO — split layout, left content + right live console */}
       <section className="relative pt-32 pb-24 lg:pt-40 lg:pb-32">
         <div className="absolute inset-0 bg-grid opacity-[0.04]" />
-        <div className="pointer-events-none absolute -top-32 left-1/2 h-[600px] w-[1100px] -translate-x-1/2 rounded-full opacity-60 blur-3xl"
-          style={{ background: "radial-gradient(ellipse at center, oklch(0.78 0.165 60 / 0.18), transparent 65%)" }} />
+        <div
+          className="pointer-events-none absolute -top-32 left-1/2 h-[600px] w-[1100px] -translate-x-1/2 rounded-full opacity-60 blur-3xl"
+          style={{
+            background:
+              "radial-gradient(ellipse at center, oklch(0.78 0.165 60 / 0.18), transparent 65%)",
+          }}
+        />
 
         <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-6 lg:grid-cols-[1.05fr_1fr]">
           {/* LEFT */}
           <div>
-            <h1
-              className="animate-float-up font-display text-[clamp(2.5rem,6vw,4.75rem)] font-semibold leading-[1.02] tracking-tight"
-            >
-              Autonomous defense<br />
+            <h1 className="animate-float-up font-display text-[clamp(2.5rem,6vw,4.75rem)] font-semibold leading-[1.02] tracking-tight">
+              Autonomous defense
+              <br />
               <span className="text-gradient">for your AWS cloud.</span>
             </h1>
-
 
             <p
               className="animate-float-up mt-6 max-w-xl text-[16px] leading-relaxed text-muted-foreground"
               style={{ animationDelay: "160ms" }}
             >
-              Connect a read-only AWS key. Strata's agents draft detection rules from
-              your account shape, triage every CloudTrail and GuardDuty event,
-              contain compromised credentials, and write the incident report — on their own.
+              Connect a read-only AWS key. Strata's agents draft detection rules from your account
+              shape, triage every CloudTrail and GuardDuty event, contain compromised credentials,
+              and write the incident report — on their own.
             </p>
 
-            <div className="animate-float-up mt-8 flex flex-wrap items-center gap-3" style={{ animationDelay: "240ms" }}>
+            <div
+              className="animate-float-up mt-8 flex flex-wrap items-center gap-3"
+              style={{ animationDelay: "240ms" }}
+            >
               <Link
                 to="/login"
                 className="group inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-medium text-primary-foreground transition-all hover:opacity-90 glow-ring"
@@ -87,7 +113,10 @@ function Landing() {
             </div>
 
             {/* Trust strip */}
-            <div className="animate-float-up mt-10 grid max-w-xl grid-cols-3 gap-6 border-t border-border/40 pt-6" style={{ animationDelay: "320ms" }}>
+            <div
+              className="animate-float-up mt-10 grid max-w-xl grid-cols-3 gap-6 border-t border-border/40 pt-6"
+              style={{ animationDelay: "320ms" }}
+            >
               <TrustItem k="AES-256" v="encryption at rest" />
               <TrustItem k="Read-only" v="IAM permissions" />
               <TrustItem k="< 3 min" v="to first detection" />
@@ -106,15 +135,19 @@ function Landing() {
         <div className="mx-auto max-w-7xl px-6">
           <SectionHeader
             tag="platform"
-            title={<>Five layers. <span className="text-gradient">One signal.</span></>}
+            title={
+              <>
+                Five layers. <span className="text-gradient">One signal.</span>
+              </>
+            }
             blurb="Every AWS event is correlated across identity, API, network, data and control planes, then mapped to MITRE ATT&CK."
           />
 
           <div className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-border/40 bg-border/40 sm:grid-cols-2 lg:grid-cols-5">
             <Layer icon={KeyRound} name="Identity" mono="iam · sts" />
-            <Layer icon={Cpu}      name="API"      mono="cloudtrail" />
-            <Layer icon={Network}  name="Network"  mono="vpc · flow" />
-            <Layer icon={Database} name="Data"     mono="s3 · kms" />
+            <Layer icon={Cpu} name="API" mono="cloudtrail" />
+            <Layer icon={Network} name="Network" mono="vpc · flow" />
+            <Layer icon={Database} name="Data" mono="s3 · kms" />
             <Layer icon={ShieldCheck} name="Control" mono="guardduty" />
           </div>
         </div>
@@ -125,12 +158,15 @@ function Landing() {
         <div className="mx-auto max-w-7xl px-6">
           <SectionHeader
             tag="agents"
-            title={<>Six agents. <span className="text-gradient">Zero seats to hire.</span></>}
+            title={
+              <>
+                Six agents. <span className="text-gradient">Zero seats to hire.</span>
+              </>
+            }
             blurb="Each agent owns one job — and runs on the model best suited for it. GPT-5 for deep reasoning, Gemini for high-volume triage, native AWS for action."
           />
 
           <AgentFlow />
-
         </div>
       </section>
 
@@ -139,16 +175,41 @@ function Landing() {
         <div className="mx-auto max-w-5xl px-6">
           <SectionHeader
             tag="how it works"
-            title={<>Connect once. <span className="text-gradient">Agents handle the rest.</span></>}
+            title={
+              <>
+                Connect once. <span className="text-gradient">Agents handle the rest.</span>
+              </>
+            }
             blurb=""
             center
           />
 
           <ol className="mt-14 space-y-0">
-            <Step i="01" icon={Lock} title="Connect AWS" desc="Paste a read-only IAM access key. Strata validates it with sts:GetCallerIdentity and stores it encrypted with AES-256-GCM." />
-            <Step i="02" icon={Bot} title="Agents draft your rules" desc="Gemini reads your account shape and writes a tailored detection ruleset, tagged with MITRE techniques and severity." />
-            <Step i="03" icon={ShieldCheck} title="Continuous triage & containment" desc="Events stream in and are triaged on every cycle. With auto-response enabled, compromised IAM keys are disabled automatically." />
-            <Step i="04" icon={FileText} title="Incident reports, written for you" desc="When related findings cluster, agents stitch them into a timeline, summary, and remediation plan." last />
+            <Step
+              i="01"
+              icon={Lock}
+              title="Connect AWS"
+              desc="Paste a read-only IAM access key. Strata validates it with sts:GetCallerIdentity and stores it encrypted with AES-256-GCM."
+            />
+            <Step
+              i="02"
+              icon={Bot}
+              title="Agents draft your rules"
+              desc="Gemini reads your account shape and writes a tailored detection ruleset, tagged with MITRE techniques and severity."
+            />
+            <Step
+              i="03"
+              icon={ShieldCheck}
+              title="Continuous triage & containment"
+              desc="Events stream in and are triaged on every cycle. With auto-response enabled, compromised IAM keys are disabled automatically."
+            />
+            <Step
+              i="04"
+              icon={FileText}
+              title="Incident reports, written for you"
+              desc="When related findings cluster, agents stitch them into a timeline, summary, and remediation plan."
+              last
+            />
           </ol>
         </div>
       </section>
@@ -158,14 +219,27 @@ function Landing() {
         <div className="mx-auto max-w-7xl px-6">
           <SectionHeader
             tag="security"
-            title={<>Built like the systems <span className="text-gradient">it protects.</span></>}
+            title={
+              <>
+                Built like the systems <span className="text-gradient">it protects.</span>
+              </>
+            }
             blurb=""
           />
 
           <div className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-border/40 bg-border/40 md:grid-cols-3">
-            <Pillar k="Read-only by default" v="Strata only attaches AWSCloudTrailReadOnlyAccess and AmazonGuardDutyReadOnlyAccess. Write access is opt-in, scoped to iam:UpdateAccessKey." />
-            <Pillar k="Secrets never leave the server" v="AWS secret access keys are encrypted at rest with AES-256-GCM and only decrypted inside server functions — the browser never sees them." />
-            <Pillar k="Auditable autonomy" v="Every agent action — rule created, event triaged, key disabled, report written — lands in the timeline with a full trail." />
+            <Pillar
+              k="Read-only by default"
+              v="Strata only attaches AWSCloudTrailReadOnlyAccess and AmazonGuardDutyReadOnlyAccess. Write access is opt-in, scoped to iam:UpdateAccessKey."
+            />
+            <Pillar
+              k="Secrets never leave the server"
+              v="AWS secret access keys are encrypted at rest with AES-256-GCM and only decrypted inside server functions — the browser never sees them."
+            />
+            <Pillar
+              k="Auditable autonomy"
+              v="Every agent action — rule created, event triaged, key disabled, report written — lands in the timeline with a full trail."
+            />
           </div>
         </div>
       </section>
@@ -175,9 +249,12 @@ function Landing() {
         <div className="mx-auto max-w-3xl px-6 text-center">
           <Logo size={44} className="mx-auto opacity-90" animated />
           <h2 className="mt-6 font-display text-4xl font-semibold tracking-tight md:text-5xl">
-            Three minutes to a<br /><span className="text-gradient">watched cloud.</span>
+            Three minutes to a<br />
+            <span className="text-gradient">watched cloud.</span>
           </h2>
-          <p className="mt-5 text-[15px] text-muted-foreground">No agents to deploy. No log shippers. Just a key.</p>
+          <p className="mt-5 text-[15px] text-muted-foreground">
+            No agents to deploy. No log shippers. Just a key.
+          </p>
           <Link
             to="/login"
             className="group mt-9 inline-flex items-center gap-2 rounded-full bg-primary px-7 py-3.5 text-sm font-medium text-primary-foreground hover:opacity-90 glow-ring"
@@ -206,19 +283,43 @@ function TrustItem({ k, v }: { k: string; v: string }) {
   return (
     <div>
       <div className="font-display text-lg font-semibold text-foreground">{k}</div>
-      <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{v}</div>
+      <div className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+        {v}
+      </div>
     </div>
   );
 }
 
-function SectionHeader({ tag, title, blurb, center = false }: { tag: string; title: React.ReactNode; blurb?: string; center?: boolean }) {
+function SectionHeader({
+  tag,
+  title,
+  blurb,
+  center = false,
+}: {
+  tag: string;
+  title: React.ReactNode;
+  blurb?: string;
+  center?: boolean;
+}) {
   return (
-    <div className={center ? "text-center" : "flex flex-col gap-6 md:flex-row md:items-end md:justify-between"}>
+    <div
+      className={
+        center ? "text-center" : "flex flex-col gap-6 md:flex-row md:items-end md:justify-between"
+      }
+    >
       <div>
         <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-primary">{tag}</p>
-        <h2 className="mt-3 font-display text-4xl font-semibold tracking-tight md:text-5xl">{title}</h2>
+        <h2 className="mt-3 font-display text-4xl font-semibold tracking-tight md:text-5xl">
+          {title}
+        </h2>
       </div>
-      {blurb && <p className={`max-w-sm text-[15px] leading-relaxed text-muted-foreground ${center ? "mx-auto mt-4" : ""}`}>{blurb}</p>}
+      {blurb && (
+        <p
+          className={`max-w-sm text-[15px] leading-relaxed text-muted-foreground ${center ? "mx-auto mt-4" : ""}`}
+        >
+          {blurb}
+        </p>
+      )}
     </div>
   );
 }
@@ -226,9 +327,14 @@ function SectionHeader({ tag, title, blurb, center = false }: { tag: string; tit
 function Layer({ icon: Icon, name, mono }: { icon: any; name: string; mono: string }) {
   return (
     <div className="group bg-card/50 p-6 transition-colors hover:bg-card">
-      <Icon className="h-5 w-5 text-primary transition-transform group-hover:scale-110" strokeWidth={1.5} />
+      <Icon
+        className="h-5 w-5 text-primary transition-transform group-hover:scale-110"
+        strokeWidth={1.5}
+      />
       <h3 className="mt-4 font-display text-lg font-medium text-foreground">{name}</h3>
-      <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground/70">{mono}</p>
+      <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground/70">
+        {mono}
+      </p>
     </div>
   );
 }
@@ -254,18 +360,34 @@ function Pillar({ k, v }: { k: string; v: string }) {
   );
 }
 
-function Step({ i, icon: Icon, title, desc, last = false }: { i: string; icon: any; title: string; desc: string; last?: boolean }) {
+function Step({
+  i,
+  icon: Icon,
+  title,
+  desc,
+  last = false,
+}: {
+  i: string;
+  icon: any;
+  title: string;
+  desc: string;
+  last?: boolean;
+}) {
   return (
     <li className="relative grid grid-cols-[auto_1fr] gap-6 pb-12 last:pb-0 md:gap-10">
       <div className="relative flex flex-col items-center">
         <div className="grid h-12 w-12 place-items-center rounded-xl border border-primary/30 bg-primary/[0.05] text-primary">
           <Icon className="h-5 w-5" strokeWidth={1.5} />
         </div>
-        {!last && <div className="mt-2 w-px flex-1 bg-gradient-to-b from-primary/40 via-border/40 to-transparent" />}
+        {!last && (
+          <div className="mt-2 w-px flex-1 bg-gradient-to-b from-primary/40 via-border/40 to-transparent" />
+        )}
       </div>
       <div className="pt-1">
         <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-primary/80">{i}</p>
-        <h3 className="mt-2 font-display text-2xl font-medium tracking-tight text-foreground">{title}</h3>
+        <h3 className="mt-2 font-display text-2xl font-medium tracking-tight text-foreground">
+          {title}
+        </h3>
         <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-muted-foreground">{desc}</p>
       </div>
     </li>
@@ -276,12 +398,48 @@ function Step({ i, icon: Icon, title, desc, last = false }: { i: string; icon: a
 
 type AgentEngine = "gpt" | "gemini" | "deterministic";
 const AGENTS: { icon: any; name: string; desc: string; engine: AgentEngine; model: string }[] = [
-  { icon: GitBranch, name: "Rule Architect", engine: "gpt",      model: "GPT-5",            desc: "Reads your account shape and drafts a tailored detection ruleset — MITRE-tagged, severity-scored, account-specific." },
-  { icon: Activity,  name: "Telemetry",     engine: "deterministic", model: "AWS SigV4",    desc: "Pulls CloudTrail and GuardDuty on every cycle and normalizes events into one stream. No model — pure AWS APIs." },
-  { icon: Eye,       name: "Triage",        engine: "gemini",   model: "Gemini 2.5 Flash", desc: "Classifies every event at high volume — category, severity, actor, and a one-line summary. Picked for speed and cost." },
-  { icon: Zap,       name: "Containment",   engine: "deterministic", model: "iam:UpdateAccessKey", desc: "When auto-response is on, compromised IAM access keys are deactivated on the spot via signed AWS calls." },
-  { icon: FileText,  name: "Reporter",      engine: "gpt",      model: "GPT-5",            desc: "Clusters correlated findings into a timeline, executive summary and remediation plan written for a CISO." },
-  { icon: Sparkles,  name: "Orchestrator",  engine: "deterministic", model: "Server loop", desc: "Runs the full loop — rules → sync → triage → contain → report — without you touching a button." },
+  {
+    icon: GitBranch,
+    name: "Rule Architect",
+    engine: "gpt",
+    model: "GPT-5",
+    desc: "Reads your account shape and drafts a tailored detection ruleset — MITRE-tagged, severity-scored, account-specific.",
+  },
+  {
+    icon: Activity,
+    name: "Telemetry",
+    engine: "deterministic",
+    model: "AWS SigV4",
+    desc: "Pulls CloudTrail and GuardDuty on every cycle and normalizes events into one stream. No model — pure AWS APIs.",
+  },
+  {
+    icon: Eye,
+    name: "Triage",
+    engine: "gemini",
+    model: "Gemini 2.5 Flash",
+    desc: "Classifies every event at high volume — category, severity, actor, and a one-line summary. Picked for speed and cost.",
+  },
+  {
+    icon: Zap,
+    name: "Containment",
+    engine: "deterministic",
+    model: "iam:UpdateAccessKey",
+    desc: "When auto-response is on, compromised IAM access keys are deactivated on the spot via signed AWS calls.",
+  },
+  {
+    icon: FileText,
+    name: "Reporter",
+    engine: "gpt",
+    model: "GPT-5",
+    desc: "Clusters correlated findings into a timeline, executive summary and remediation plan written for a CISO.",
+  },
+  {
+    icon: Sparkles,
+    name: "Orchestrator",
+    engine: "deterministic",
+    model: "Server loop",
+    desc: "Runs the full loop — rules → sync → triage → contain → report — without you touching a button.",
+  },
 ];
 
 function EngineBadge({ engine, model }: { engine: AgentEngine; model: string }) {
@@ -289,18 +447,18 @@ function EngineBadge({ engine, model }: { engine: AgentEngine; model: string }) 
     engine === "gpt"
       ? "border-emerald-400/30 bg-emerald-400/[0.08] text-emerald-300"
       : engine === "gemini"
-      ? "border-sky-400/30 bg-sky-400/[0.08] text-sky-300"
-      : "border-border/60 bg-card/40 text-muted-foreground";
-  const label =
-    engine === "gpt" ? "OpenAI" : engine === "gemini" ? "Google" : "AWS native";
+        ? "border-sky-400/30 bg-sky-400/[0.08] text-sky-300"
+        : "border-border/60 bg-card/40 text-muted-foreground";
+  const label = engine === "gpt" ? "OpenAI" : engine === "gemini" ? "Google" : "AWS native";
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em] ${styles}`}>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em] ${styles}`}
+    >
       <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
       {label} · {model}
     </span>
   );
 }
-
 
 function AgentFlow() {
   const [seen, setSeen] = useState<Set<number>>(new Set());
@@ -382,7 +540,15 @@ function AgentFlow() {
                       <stop offset="100%" stopColor="currentColor" stopOpacity="0.15" />
                     </linearGradient>
                   </defs>
-                  <line x1="14" y1="2" x2="14" y2="26" stroke={`url(#flow-${i})`} strokeWidth="1.5" strokeDasharray="3 3" />
+                  <line
+                    x1="14"
+                    y1="2"
+                    x2="14"
+                    y2="26"
+                    stroke={`url(#flow-${i})`}
+                    strokeWidth="1.5"
+                    strokeDasharray="3 3"
+                  />
                   <path d="M14 32 L8 24 L20 24 Z" fill="currentColor" opacity="0.7" />
                 </svg>
               </div>
@@ -396,17 +562,15 @@ function AgentFlow() {
 
 /* ---------- Live console mock ---------- */
 
-
-
 const CONSOLE_LINES: { t: string; tag: string; tone: "info" | "warn" | "crit" | "ok" }[] = [
-  { t: "agent.rule.architect → drafted 14 rules for account 9132••••", tag: "rules",     tone: "info" },
-  { t: "cloudtrail → ConsoleLogin (us-east-1) · root · 92.118.4.21",    tag: "auth",     tone: "warn" },
-  { t: "agent.triage → severity=high · category=credential_access",     tag: "triage",   tone: "warn" },
-  { t: "guardduty → UnauthorizedAccess:IAMUser/MaliciousIPCaller",      tag: "gd",       tone: "crit" },
-  { t: "agent.contain → iam:UpdateAccessKey AKIAX••• → Inactive",       tag: "contain",  tone: "crit" },
-  { t: "agent.reporter → incident #2317 · 6 findings · timeline ✓",     tag: "report",   tone: "ok"   },
-  { t: "cloudtrail → CreateUser (us-east-1) · admin · 10.4.0.12",       tag: "iam",      tone: "info" },
-  { t: "agent.triage → severity=low · category=normal_admin",           tag: "triage",   tone: "info" },
+  { t: "agent.rule.architect → drafted 14 rules for account 9132••••", tag: "rules", tone: "info" },
+  { t: "cloudtrail → ConsoleLogin (us-east-1) · root · 92.118.4.21", tag: "auth", tone: "warn" },
+  { t: "agent.triage → severity=high · category=credential_access", tag: "triage", tone: "warn" },
+  { t: "guardduty → UnauthorizedAccess:IAMUser/MaliciousIPCaller", tag: "gd", tone: "crit" },
+  { t: "agent.contain → iam:UpdateAccessKey AKIAX••• → Inactive", tag: "contain", tone: "crit" },
+  { t: "agent.reporter → incident #2317 · 6 findings · timeline ✓", tag: "report", tone: "ok" },
+  { t: "cloudtrail → CreateUser (us-east-1) · admin · 10.4.0.12", tag: "iam", tone: "info" },
+  { t: "agent.triage → severity=low · category=normal_admin", tag: "triage", tone: "info" },
 ];
 
 function LiveConsole() {
@@ -434,7 +598,6 @@ function LiveConsole() {
           <div className="absolute right-4 top-3 font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
             dashboard preview
           </div>
-
         </div>
 
         {/* console */}
@@ -445,21 +608,30 @@ function LiveConsole() {
               className="flex items-start gap-3 animate-float-up"
               style={{ animationDuration: "350ms" }}
             >
-              <span className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+              <span
+                className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full"
                 style={{
                   background:
-                    l.tone === "crit" ? "var(--critical)" :
-                    l.tone === "warn" ? "var(--warning)" :
-                    l.tone === "ok"   ? "var(--success)"  :
-                                        "var(--primary)",
+                    l.tone === "crit"
+                      ? "var(--critical)"
+                      : l.tone === "warn"
+                        ? "var(--warning)"
+                        : l.tone === "ok"
+                          ? "var(--success)"
+                          : "var(--primary)",
                   boxShadow:
-                    l.tone === "crit" ? "0 0 10px var(--critical)" :
-                    l.tone === "warn" ? "0 0 10px var(--warning)" :
-                    l.tone === "ok"   ? "0 0 10px var(--success)"  :
-                                        "0 0 10px var(--primary)",
+                    l.tone === "crit"
+                      ? "0 0 10px var(--critical)"
+                      : l.tone === "warn"
+                        ? "0 0 10px var(--warning)"
+                        : l.tone === "ok"
+                          ? "0 0 10px var(--success)"
+                          : "0 0 10px var(--primary)",
                 }}
               />
-              <span className="w-16 shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">{l.tag}</span>
+              <span className="w-16 shrink-0 text-[10px] uppercase tracking-wider text-muted-foreground">
+                {l.tag}
+              </span>
               <span className="flex-1 text-foreground/90">{l.t}</span>
             </div>
           ))}
@@ -472,8 +644,12 @@ function LiveConsole() {
         {/* footer chips */}
         <div className="flex items-center justify-between border-t border-border/50 bg-background/30 px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
           <span>region · us-east-1</span>
-          <span><span className="text-foreground">14</span> rules</span>
-          <span><span className="text-[color:var(--critical)]">2</span> contained</span>
+          <span>
+            <span className="text-foreground">14</span> rules
+          </span>
+          <span>
+            <span className="text-[color:var(--critical)]">2</span> contained
+          </span>
         </div>
       </div>
     </div>

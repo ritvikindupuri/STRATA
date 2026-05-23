@@ -21,15 +21,17 @@ async function hmac(key: ArrayBuffer | Uint8Array, data: string): Promise<ArrayB
 }
 
 function toHex(buf: Uint8Array): string {
-  return Array.from(buf).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(buf)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 export interface SignedRequestInit {
   method: string;
-  service: string;       // e.g. "sts", "cloudtrail", "guardduty"
-  region: string;        // e.g. "us-east-1"
-  host: string;          // e.g. "sts.amazonaws.com"
-  path?: string;         // default "/"
+  service: string; // e.g. "sts", "cloudtrail", "guardduty"
+  region: string; // e.g. "us-east-1"
+  host: string; // e.g. "sts.amazonaws.com"
+  path?: string; // default "/"
   query?: Record<string, string>;
   headers?: Record<string, string>;
   body?: string;
@@ -38,7 +40,9 @@ export interface SignedRequestInit {
   sessionToken?: string;
 }
 
-export async function signAwsRequest(req: SignedRequestInit): Promise<{ url: string; headers: Record<string, string> }> {
+export async function signAwsRequest(
+  req: SignedRequestInit,
+): Promise<{ url: string; headers: Record<string, string> }> {
   const method = req.method.toUpperCase();
   const path = req.path || "/";
   const body = req.body ?? "";
@@ -63,16 +67,35 @@ export async function signAwsRequest(req: SignedRequestInit): Promise<{ url: str
     .join("&");
 
   // Canonical headers (lowercased keys, sorted)
-  const sortedHeaderKeys = Object.keys(headers).map((k) => k.toLowerCase()).sort();
+  const sortedHeaderKeys = Object.keys(headers)
+    .map((k) => k.toLowerCase())
+    .sort();
   const canonicalHeaders = sortedHeaderKeys
-    .map((k) => `${k}:${String(headers[Object.keys(headers).find((h) => h.toLowerCase() === k)!]).trim().replace(/\s+/g, " ")}\n`)
+    .map(
+      (k) =>
+        `${k}:${String(headers[Object.keys(headers).find((h) => h.toLowerCase() === k)!])
+          .trim()
+          .replace(/\s+/g, " ")}\n`,
+    )
     .join("");
   const signedHeaders = sortedHeaderKeys.join(";");
 
-  const canonicalRequest = [method, path, canonicalQuery, canonicalHeaders, signedHeaders, payloadHash].join("\n");
+  const canonicalRequest = [
+    method,
+    path,
+    canonicalQuery,
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join("\n");
 
   const credentialScope = `${dateStamp}/${req.region}/${req.service}/aws4_request`;
-  const stringToSign = ["AWS4-HMAC-SHA256", amzDate, credentialScope, await sha256Hex(canonicalRequest)].join("\n");
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    amzDate,
+    credentialScope,
+    await sha256Hex(canonicalRequest),
+  ].join("\n");
 
   const kDate = await hmac(enc.encode(`AWS4${req.secretAccessKey}`), dateStamp);
   const kRegion = await hmac(kDate, req.region);

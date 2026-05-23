@@ -4,9 +4,24 @@ import { cn } from "@/lib/utils";
  * STRATA glyph — hexagonal aperture with concentric strata + scan dot.
  * Represents layered defense (hex shield) + autonomous observation (iris).
  */
-export function Logo({ className, size = 28, animated = false }: { className?: string; size?: number; animated?: boolean }) {
+export function Logo({
+  className,
+  size = 28,
+  animated = false,
+}: {
+  className?: string;
+  size?: number;
+  animated?: boolean;
+}) {
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" className={cn(className)} aria-hidden>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 64 64"
+      fill="none"
+      className={cn(className)}
+      aria-hidden
+    >
       <defs>
         <linearGradient id="strataGrad" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="oklch(0.86 0.16 70)" />
@@ -56,13 +71,17 @@ export function Logo({ className, size = 28, animated = false }: { className?: s
   );
 }
 
-export function LogoMark({ className, animated = false }: { className?: string; animated?: boolean }) {
+export function LogoMark({
+  className,
+  animated = false,
+}: {
+  className?: string;
+  animated?: boolean;
+}) {
   return (
     <div className={cn("flex items-center gap-2.5", className)}>
       <Logo size={26} animated={animated} />
-      <span className="font-display text-[15px] font-semibold tracking-[0.22em]">
-        STRATA
-      </span>
+      <span className="font-display text-[15px] font-semibold tracking-[0.22em]">STRATA</span>
     </div>
   );
 }
