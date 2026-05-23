@@ -17,8 +17,13 @@ function Dashboard() {
   const conn = useQuery({
     queryKey: ["aws-conn"],
     queryFn: async () => {
-      const { data } = await supabase.from("aws_connections_safe").select("*").maybeSingle();
-      return data;
+      const { data } = await (supabase as any).rpc("my_aws_connection");
+      return (Array.isArray(data) && data.length ? data[0] : null) as null | {
+        id: string; status: string; aws_account_id: string | null; aws_arn: string | null;
+        region: string; last_validated_at: string | null; auto_response_enabled: boolean;
+        es_endpoint: string | null; es_index: string | null; es_connected: boolean;
+        mock_data_seeded_at: string | null;
+      };
     },
   });
 
