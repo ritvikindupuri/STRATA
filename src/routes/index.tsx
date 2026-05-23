@@ -53,23 +53,13 @@ function Landing() {
         <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-6 lg:grid-cols-[1.05fr_1fr]">
           {/* LEFT */}
           <div>
-            <div className="animate-float-up inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/40 px-3 py-1 backdrop-blur">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-pulse-ring rounded-full bg-primary" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
-              </span>
-              <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground">
-                <span className="text-foreground">Strata v1</span> · agents online
-              </span>
-            </div>
-
             <h1
-              className="animate-float-up mt-6 font-display text-[clamp(2.5rem,6vw,4.75rem)] font-semibold leading-[1.02] tracking-tight"
-              style={{ animationDelay: "80ms" }}
+              className="animate-float-up font-display text-[clamp(2.5rem,6vw,4.75rem)] font-semibold leading-[1.02] tracking-tight"
             >
               Autonomous defense<br />
               <span className="text-gradient">for your AWS cloud.</span>
             </h1>
+
 
             <p
               className="animate-float-up mt-6 max-w-xl text-[16px] leading-relaxed text-muted-foreground"
