@@ -94,10 +94,14 @@ export type Database = {
           aws_arn: string | null
           created_at: string
           encrypted_secret: string | null
+          es_api_key_encrypted: string | null
+          es_endpoint: string | null
+          es_index: string | null
           id: string
           label: string
           last_error: string | null
           last_validated_at: string | null
+          mock_data_seeded_at: string | null
           region: string
           secret_access_key: string
           status: string
@@ -110,10 +114,14 @@ export type Database = {
           aws_arn?: string | null
           created_at?: string
           encrypted_secret?: string | null
+          es_api_key_encrypted?: string | null
+          es_endpoint?: string | null
+          es_index?: string | null
           id?: string
           label?: string
           last_error?: string | null
           last_validated_at?: string | null
+          mock_data_seeded_at?: string | null
           region?: string
           secret_access_key: string
           status?: string
@@ -126,10 +134,14 @@ export type Database = {
           aws_arn?: string | null
           created_at?: string
           encrypted_secret?: string | null
+          es_api_key_encrypted?: string | null
+          es_endpoint?: string | null
+          es_index?: string | null
           id?: string
           label?: string
           last_error?: string | null
           last_validated_at?: string | null
+          mock_data_seeded_at?: string | null
           region?: string
           secret_access_key?: string
           status?: string
@@ -340,10 +352,14 @@ export type Database = {
           aws_account_id: string | null
           aws_arn: string | null
           created_at: string | null
+          es_connected: boolean | null
+          es_endpoint: string | null
+          es_index: string | null
           id: string | null
           label: string | null
           last_error: string | null
           last_validated_at: string | null
+          mock_data_seeded_at: string | null
           region: string | null
           status: string | null
           user_id: string | null
@@ -353,10 +369,14 @@ export type Database = {
           aws_account_id?: string | null
           aws_arn?: string | null
           created_at?: string | null
+          es_connected?: never
+          es_endpoint?: string | null
+          es_index?: string | null
           id?: string | null
           label?: string | null
           last_error?: string | null
           last_validated_at?: string | null
+          mock_data_seeded_at?: string | null
           region?: string | null
           status?: string | null
           user_id?: string | null
@@ -366,10 +386,14 @@ export type Database = {
           aws_account_id?: string | null
           aws_arn?: string | null
           created_at?: string | null
+          es_connected?: never
+          es_endpoint?: string | null
+          es_index?: string | null
           id?: string | null
           label?: string | null
           last_error?: string | null
           last_validated_at?: string | null
+          mock_data_seeded_at?: string | null
           region?: string | null
           status?: string | null
           user_id?: string | null
