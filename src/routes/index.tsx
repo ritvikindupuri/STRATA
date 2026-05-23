@@ -272,7 +272,108 @@ function Step({ i, icon: Icon, title, desc, last = false }: { i: string; icon: a
   );
 }
 
+/* ---------- Agent Flow: connected sequential pipeline ---------- */
+
+const AGENTS = [
+  { icon: GitBranch, name: "Rule Architect", desc: "Reads your account shape and drafts a detection ruleset, MITRE-tagged and severity-scored." },
+  { icon: Activity,  name: "Telemetry",     desc: "Pulls CloudTrail and GuardDuty on every cycle, normalizing events into one stream." },
+  { icon: Eye,       name: "Triage",        desc: "Gemini classifies every event — category, severity, actor, and a one-line summary." },
+  { icon: Zap,       name: "Containment",   desc: "When auto-response is on, compromised IAM access keys are deactivated on the spot." },
+  { icon: FileText,  name: "Reporter",      desc: "Clusters correlated findings into a timeline, executive summary and remediation plan." },
+  { icon: Sparkles,  name: "Orchestrator",  desc: "Runs the loop on a schedule — rules, sync, triage, contain, report — without you." },
+];
+
+function AgentFlow() {
+  const [seen, setSeen] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    const els = document.querySelectorAll<HTMLElement>("[data-agent-card]");
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            const idx = Number((e.target as HTMLElement).dataset.idx);
+            setSeen((prev) => {
+              if (prev.has(idx)) return prev;
+              const next = new Set(prev);
+              next.add(idx);
+              return next;
+            });
+          }
+        });
+      },
+      { threshold: 0.35 },
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+
+  return (
+    <div className="mt-14 space-y-5">
+      {AGENTS.map((a, i) => {
+        const Icon = a.icon;
+        const visible = seen.has(i);
+        const last = i === AGENTS.length - 1;
+        return (
+          <div
+            key={a.name}
+            data-agent-card
+            data-idx={i}
+            className="relative"
+            style={{
+              transition: "opacity 600ms ease, transform 600ms ease",
+              transitionDelay: `${(i % 3) * 80}ms`,
+              opacity: visible ? 1 : 0,
+              transform: visible ? "translateY(0)" : "translateY(16px)",
+            }}
+          >
+            <div className="group relative flex items-start gap-5 rounded-2xl border border-border/40 bg-card/50 p-6 backdrop-blur-sm transition-colors hover:border-primary/40 hover:bg-card md:p-7">
+              <div className="flex shrink-0 flex-col items-center">
+                <div className="grid h-12 w-12 place-items-center rounded-xl border border-primary/30 bg-primary/[0.08] text-primary shadow-[0_0_24px_-6px_var(--primary)]">
+                  <Icon className="h-5 w-5" strokeWidth={1.5} />
+                </div>
+                <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.25em] text-muted-foreground/70">
+                  0{i + 1}
+                </p>
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-display text-xl font-medium tracking-tight text-foreground">
+                  {a.name}
+                </h3>
+                <p className="mt-1.5 max-w-2xl text-[14.5px] leading-relaxed text-muted-foreground">
+                  {a.desc}
+                </p>
+              </div>
+            </div>
+            {!last && (
+              <div
+                className="pointer-events-none flex justify-start pl-8 md:pl-9"
+                style={{
+                  transition: "opacity 500ms ease 200ms",
+                  opacity: visible ? 1 : 0,
+                }}
+              >
+                <svg width="28" height="36" viewBox="0 0 28 36" className="text-primary/60">
+                  <defs>
+                    <linearGradient id={`flow-${i}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="currentColor" stopOpacity="0.7" />
+                      <stop offset="100%" stopColor="currentColor" stopOpacity="0.15" />
+                    </linearGradient>
+                  </defs>
+                  <line x1="14" y1="2" x2="14" y2="26" stroke={`url(#flow-${i})`} strokeWidth="1.5" strokeDasharray="3 3" />
+                  <path d="M14 32 L8 24 L20 24 Z" fill="currentColor" opacity="0.7" />
+                </svg>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ---------- Live console mock ---------- */
+
+
 
 const CONSOLE_LINES: { t: string; tag: string; tone: "info" | "warn" | "crit" | "ok" }[] = [
   { t: "agent.rule.architect → drafted 14 rules for account 9132••••", tag: "rules",     tone: "info" },
