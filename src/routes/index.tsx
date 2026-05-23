@@ -129,14 +129,8 @@ function Landing() {
             blurb="Each agent owns one job. Together they replace the toil of a small SOC team."
           />
 
-          <div className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-border/40 bg-border/40 md:grid-cols-2 lg:grid-cols-3">
-            <Feature icon={GitBranch} name="Rule Architect" desc="Reads your account shape and drafts a detection ruleset, MITRE-tagged and severity-scored." />
-            <Feature icon={Activity}  name="Telemetry"     desc="Pulls CloudTrail and GuardDuty on every cycle, normalizes events into one stream." />
-            <Feature icon={Eye}       name="Triage"        desc="Gemini classifies every event — category, severity, who, what, and a one-line summary." />
-            <Feature icon={Zap}       name="Containment"   desc="When auto-response is on, compromised IAM access keys are deactivated on the spot." />
-            <Feature icon={FileText}  name="Reporter"      desc="Clusters correlated findings into a timeline, executive summary and remediation plan." />
-            <Feature icon={Sparkles}  name="Orchestrator"  desc="Runs the loop on a schedule — rules, sync, triage, contain, report — without you." />
-          </div>
+          <AgentFlow />
+
         </div>
       </section>
 
