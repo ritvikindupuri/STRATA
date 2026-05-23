@@ -140,7 +140,8 @@ Generate 8-10 high-signal detection rules covering: credential exfiltration, pri
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
+      model: "openai/gpt-5",
+
       messages: [
         { role: "system", content: "Respond with ONLY valid JSON. No markdown, no prose." },
         { role: "user", content: prompt },
@@ -267,7 +268,7 @@ ${JSON.stringify(findings, null, 2).slice(0, 9000)}`;
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
+      model: "openai/gpt-5",
       messages: [
         { role: "system", content: "Respond with ONLY valid JSON. No markdown wrapper, no prose." },
         { role: "user", content: prompt },

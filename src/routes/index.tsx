@@ -126,7 +126,7 @@ function Landing() {
           <SectionHeader
             tag="agents"
             title={<>Six agents. <span className="text-gradient">Zero seats to hire.</span></>}
-            blurb="Each agent owns one job. Together they replace the toil of a small SOC team."
+            blurb="Each agent owns one job — and runs on the model best suited for it. GPT-5 for deep reasoning, Gemini for high-volume triage, native AWS for action."
           />
 
           <AgentFlow />
@@ -274,14 +274,33 @@ function Step({ i, icon: Icon, title, desc, last = false }: { i: string; icon: a
 
 /* ---------- Agent Flow: connected sequential pipeline ---------- */
 
-const AGENTS = [
-  { icon: GitBranch, name: "Rule Architect", desc: "Reads your account shape and drafts a detection ruleset, MITRE-tagged and severity-scored." },
-  { icon: Activity,  name: "Telemetry",     desc: "Pulls CloudTrail and GuardDuty on every cycle, normalizing events into one stream." },
-  { icon: Eye,       name: "Triage",        desc: "Gemini classifies every event — category, severity, actor, and a one-line summary." },
-  { icon: Zap,       name: "Containment",   desc: "When auto-response is on, compromised IAM access keys are deactivated on the spot." },
-  { icon: FileText,  name: "Reporter",      desc: "Clusters correlated findings into a timeline, executive summary and remediation plan." },
-  { icon: Sparkles,  name: "Orchestrator",  desc: "Runs the loop on a schedule — rules, sync, triage, contain, report — without you." },
+type AgentEngine = "gpt" | "gemini" | "deterministic";
+const AGENTS: { icon: any; name: string; desc: string; engine: AgentEngine; model: string }[] = [
+  { icon: GitBranch, name: "Rule Architect", engine: "gpt",      model: "GPT-5",            desc: "Reads your account shape and drafts a tailored detection ruleset — MITRE-tagged, severity-scored, account-specific." },
+  { icon: Activity,  name: "Telemetry",     engine: "deterministic", model: "AWS SigV4",    desc: "Pulls CloudTrail and GuardDuty on every cycle and normalizes events into one stream. No model — pure AWS APIs." },
+  { icon: Eye,       name: "Triage",        engine: "gemini",   model: "Gemini 2.5 Flash", desc: "Classifies every event at high volume — category, severity, actor, and a one-line summary. Picked for speed and cost." },
+  { icon: Zap,       name: "Containment",   engine: "deterministic", model: "iam:UpdateAccessKey", desc: "When auto-response is on, compromised IAM access keys are deactivated on the spot via signed AWS calls." },
+  { icon: FileText,  name: "Reporter",      engine: "gpt",      model: "GPT-5",            desc: "Clusters correlated findings into a timeline, executive summary and remediation plan written for a CISO." },
+  { icon: Sparkles,  name: "Orchestrator",  engine: "deterministic", model: "Server loop", desc: "Runs the full loop — rules → sync → triage → contain → report — without you touching a button." },
 ];
+
+function EngineBadge({ engine, model }: { engine: AgentEngine; model: string }) {
+  const styles =
+    engine === "gpt"
+      ? "border-emerald-400/30 bg-emerald-400/[0.08] text-emerald-300"
+      : engine === "gemini"
+      ? "border-sky-400/30 bg-sky-400/[0.08] text-sky-300"
+      : "border-border/60 bg-card/40 text-muted-foreground";
+  const label =
+    engine === "gpt" ? "OpenAI" : engine === "gemini" ? "Google" : "AWS native";
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em] ${styles}`}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-80" />
+      {label} · {model}
+    </span>
+  );
+}
+
 
 function AgentFlow() {
   const [seen, setSeen] = useState<Set<number>>(new Set());
@@ -336,9 +355,13 @@ function AgentFlow() {
                 </p>
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="font-display text-xl font-medium tracking-tight text-foreground">
-                  {a.name}
-                </h3>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <h3 className="font-display text-xl font-medium tracking-tight text-foreground">
+                    {a.name}
+                  </h3>
+                  <EngineBadge engine={a.engine} model={a.model} />
+                </div>
+
                 <p className="mt-1.5 max-w-2xl text-[14.5px] leading-relaxed text-muted-foreground">
                   {a.desc}
                 </p>
