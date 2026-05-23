@@ -269,13 +269,6 @@ export type Database = {
             referencedRelation: "aws_connections"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "findings_connection_id_fkey"
-            columns: ["connection_id"]
-            isOneToOne: false
-            referencedRelation: "aws_connections_safe"
-            referencedColumns: ["id"]
-          },
         ]
       }
       incident_reports: {
@@ -346,63 +339,29 @@ export type Database = {
       }
     }
     Views: {
-      aws_connections_safe: {
-        Row: {
-          auto_response_enabled: boolean | null
-          aws_account_id: string | null
-          aws_arn: string | null
-          created_at: string | null
-          es_connected: boolean | null
-          es_endpoint: string | null
-          es_index: string | null
-          id: string | null
-          label: string | null
-          last_error: string | null
-          last_validated_at: string | null
-          mock_data_seeded_at: string | null
-          region: string | null
-          status: string | null
-          user_id: string | null
-        }
-        Insert: {
-          auto_response_enabled?: boolean | null
-          aws_account_id?: string | null
-          aws_arn?: string | null
-          created_at?: string | null
-          es_connected?: never
-          es_endpoint?: string | null
-          es_index?: string | null
-          id?: string | null
-          label?: string | null
-          last_error?: string | null
-          last_validated_at?: string | null
-          mock_data_seeded_at?: string | null
-          region?: string | null
-          status?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          auto_response_enabled?: boolean | null
-          aws_account_id?: string | null
-          aws_arn?: string | null
-          created_at?: string | null
-          es_connected?: never
-          es_endpoint?: string | null
-          es_index?: string | null
-          id?: string | null
-          label?: string | null
-          last_error?: string | null
-          last_validated_at?: string | null
-          mock_data_seeded_at?: string | null
-          region?: string | null
-          status?: string | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      my_aws_connection: {
+        Args: never
+        Returns: {
+          auto_response_enabled: boolean
+          aws_account_id: string
+          aws_arn: string
+          created_at: string
+          es_connected: boolean
+          es_endpoint: string
+          es_index: string
+          id: string
+          label: string
+          last_error: string
+          last_validated_at: string
+          mock_data_seeded_at: string
+          region: string
+          status: string
+          user_id: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
