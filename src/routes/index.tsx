@@ -126,7 +126,7 @@ function Landing() {
           <SectionHeader
             tag="agents"
             title={<>Six agents. <span className="text-gradient">Zero seats to hire.</span></>}
-            blurb="Each agent owns one job. Together they replace the toil of a small SOC team."
+            blurb="Each agent owns one job — and runs on the model best suited for it. GPT-5 for deep reasoning, Gemini for high-volume triage, native AWS for action."
           />
 
           <AgentFlow />
