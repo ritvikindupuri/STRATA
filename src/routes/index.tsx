@@ -314,8 +314,9 @@ function LiveConsole() {
             <span className="h-2 w-2 rounded-full bg-[color:var(--success)]/70" />
           </div>
           <div className="absolute right-4 top-3 font-mono text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
-            strata · live
+            dashboard preview
           </div>
+
         </div>
 
         {/* console */}
