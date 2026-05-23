@@ -355,9 +355,13 @@ function AgentFlow() {
                 </p>
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="font-display text-xl font-medium tracking-tight text-foreground">
-                  {a.name}
-                </h3>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <h3 className="font-display text-xl font-medium tracking-tight text-foreground">
+                    {a.name}
+                  </h3>
+                  <EngineBadge engine={a.engine} model={a.model} />
+                </div>
+
                 <p className="mt-1.5 max-w-2xl text-[14.5px] leading-relaxed text-muted-foreground">
                   {a.desc}
                 </p>
