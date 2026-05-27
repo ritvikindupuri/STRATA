@@ -2,10 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { runAutopilot } from "@/lib/agent.functions";
-import { useEffect, useRef } from "react";
+import { runAutopilot, clearSession } from "@/lib/agent.functions";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, Activity, ShieldCheck, Cloud, ArrowRight, Bot } from "lucide-react";
+import { AlertTriangle, Activity, ShieldCheck, Cloud, ArrowRight, Bot, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export const Route = createFileRoute("/app/")({ component: Dashboard });
