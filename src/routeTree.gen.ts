@@ -15,8 +15,10 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppTimelineRouteImport } from './routes/app.timeline'
 import { Route as AppReportsRouteImport } from './routes/app.reports'
+import { Route as AppHistoryRouteImport } from './routes/app.history'
 import { Route as AppFindingsRouteImport } from './routes/app.findings'
 import { Route as AppConnectRouteImport } from './routes/app.connect'
+import { Route as AppBlockedRouteImport } from './routes/app.blocked'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -48,6 +50,11 @@ const AppReportsRoute = AppReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => AppRoute,
 } as any)
+const AppHistoryRoute = AppHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppFindingsRoute = AppFindingsRouteImport.update({
   id: '/findings',
   path: '/findings',
@@ -58,13 +65,20 @@ const AppConnectRoute = AppConnectRouteImport.update({
   path: '/connect',
   getParentRoute: () => AppRoute,
 } as any)
+const AppBlockedRoute = AppBlockedRouteImport.update({
+  id: '/blocked',
+  path: '/blocked',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/app/blocked': typeof AppBlockedRoute
   '/app/connect': typeof AppConnectRoute
   '/app/findings': typeof AppFindingsRoute
+  '/app/history': typeof AppHistoryRoute
   '/app/reports': typeof AppReportsRoute
   '/app/timeline': typeof AppTimelineRoute
   '/app/': typeof AppIndexRoute
@@ -72,8 +86,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/app/blocked': typeof AppBlockedRoute
   '/app/connect': typeof AppConnectRoute
   '/app/findings': typeof AppFindingsRoute
+  '/app/history': typeof AppHistoryRoute
   '/app/reports': typeof AppReportsRoute
   '/app/timeline': typeof AppTimelineRoute
   '/app': typeof AppIndexRoute
@@ -83,8 +99,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
   '/login': typeof LoginRoute
+  '/app/blocked': typeof AppBlockedRoute
   '/app/connect': typeof AppConnectRoute
   '/app/findings': typeof AppFindingsRoute
+  '/app/history': typeof AppHistoryRoute
   '/app/reports': typeof AppReportsRoute
   '/app/timeline': typeof AppTimelineRoute
   '/app/': typeof AppIndexRoute
@@ -95,8 +113,10 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/login'
+    | '/app/blocked'
     | '/app/connect'
     | '/app/findings'
+    | '/app/history'
     | '/app/reports'
     | '/app/timeline'
     | '/app/'
@@ -104,8 +124,10 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/login'
+    | '/app/blocked'
     | '/app/connect'
     | '/app/findings'
+    | '/app/history'
     | '/app/reports'
     | '/app/timeline'
     | '/app'
@@ -114,8 +136,10 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/login'
+    | '/app/blocked'
     | '/app/connect'
     | '/app/findings'
+    | '/app/history'
     | '/app/reports'
     | '/app/timeline'
     | '/app/'
@@ -171,6 +195,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppReportsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/history': {
+      id: '/app/history'
+      path: '/history'
+      fullPath: '/app/history'
+      preLoaderRoute: typeof AppHistoryRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/findings': {
       id: '/app/findings'
       path: '/findings'
@@ -185,20 +216,31 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppConnectRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/blocked': {
+      id: '/app/blocked'
+      path: '/blocked'
+      fullPath: '/app/blocked'
+      preLoaderRoute: typeof AppBlockedRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
+  AppBlockedRoute: typeof AppBlockedRoute
   AppConnectRoute: typeof AppConnectRoute
   AppFindingsRoute: typeof AppFindingsRoute
+  AppHistoryRoute: typeof AppHistoryRoute
   AppReportsRoute: typeof AppReportsRoute
   AppTimelineRoute: typeof AppTimelineRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppBlockedRoute: AppBlockedRoute,
   AppConnectRoute: AppConnectRoute,
   AppFindingsRoute: AppFindingsRoute,
+  AppHistoryRoute: AppHistoryRoute,
   AppReportsRoute: AppReportsRoute,
   AppTimelineRoute: AppTimelineRoute,
   AppIndexRoute: AppIndexRoute,
@@ -214,3 +256,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
