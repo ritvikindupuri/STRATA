@@ -1,7 +1,11 @@
 # STRATA
 **Autonomous intrusion detection system for your AWS cloud.**
 
-STRATA connects directly to your AWS environment to ingest logs, analyze threats using AI agents, contain compromised identities, and write detailed incident reports without requiring human intervention.
+STRATA is built to eliminate the alert fatigue and manual toil inherent in modern cloud security operations. By simply connecting a read-only AWS IAM key, STRATA deploys a fleet of six specialized autonomous agents that handle the entire incident response lifecycle from end to end.
+
+Instead of forcing a human analyst to sift through endless logs, STRATA continuously polls AWS CloudTrail and GuardDuty (across identity, API, network, data, and control planes), normalizes the telemetry, and instantly feeds it into advanced LLMs for triage. High-volume events are rapidly categorized and severity-scored by Google's Gemini 2.5 Flash, while deep-reasoning tasks—such as drafting account-specific detection rules and writing CISO-ready incident reports—are handled by OpenAI's GPT-5.
+
+Furthermore, STRATA doesn't just alert you to danger; it can actively stop it. When auto-response is enabled, deterministic containment agents instantly revoke compromised IAM credentials the moment a critical threat is confirmed, shrinking the window of compromise from hours down to seconds. From rule generation to containment and final reporting, STRATA provides a fully automated, transparent, and highly accurate cloud defense solution requiring zero human intervention.
 
 ## System Architecture
 
