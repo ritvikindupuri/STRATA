@@ -110,7 +110,7 @@ export const clearSession = createServerFn({ method: "POST" })
     const { data: reportsCount } = await supabaseAdmin
       .from("incident_reports").select("id", { count: "exact", head: true }).eq("user_id", uid);
 
-    await supabaseAdmin.from("agent_sessions").insert({
+    await (supabaseAdmin as any).from("agent_sessions").insert({
       user_id: uid,
       runs: runs?.length ?? 0,
       findings: (findingsCount as any)?.length ?? 0,
