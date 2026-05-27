@@ -1,8 +1,12 @@
-# Technical Documentation
+# STRATA Technical Documentation
+**Date:** May 27, 2026
+**By:** Ritvik Indupuri
+
+---
 
 ## Executive Summary
 
-STRATA is an autonomous, agent-based intrusion detection system (IDS) built specifically for AWS cloud environments. It completely removes the need for human analysts to manually sift through massive volumes of CloudTrail logs and GuardDuty alerts. Instead, a fleet of AI-driven and deterministic agents operates continuously to ingest, analyze, correlate, and respond to threats in near real-time. By leveraging large language models (LLMs) like Google's Gemini 2.5 Flash and OpenAI's GPT-5, STRATA generates account-specific detection rules, triages events at scale, contains threats automatically by disabling compromised IAM access keys, and authors executive-level incident reports.
+STRATA is an autonomous, agent-based intrusion detection system (IDS) built specifically for AWS cloud environments. It completely removes the need for human analysts to manually sift through massive volumes of CloudTrail logs and GuardDuty alerts. Instead, a fleet of specialized AI-driven and deterministic agents operates continuously to ingest, analyze, correlate, and respond to threats in near real-time. By leveraging large language models (LLMs) like Google's Gemini 2.5 Flash and OpenAI's GPT-5 alongside native AWS SigV4 API integrations and Supabase, STRATA generates account-specific detection rules, triages events at scale, contains threats automatically by disabling compromised IAM access keys, and authors executive-level incident reports.
 
 ## Table of Contents
 
@@ -15,6 +19,7 @@ STRATA is an autonomous, agent-based intrusion detection system (IDS) built spec
    - [User Interface Modules](#user-interface-modules)
    - [Sandbox Environment](#sandbox-environment)
    - [Elasticsearch Integration](#elasticsearch-integration)
+   - [Supabase & Lovable Integration](#supabase--lovable-integration)
 4. [Conclusion](#conclusion)
 
 ---
@@ -103,24 +108,24 @@ graph TD
 1. **Connection & Credential Validation**
    - The user inputs read-only AWS IAM credentials (and optionally Elasticsearch credentials) into the STRATA frontend.
    - The backend validates the AWS credentials using `sts:GetCallerIdentity` via standard AWS Signature V4 signing.
-   - Upon successful validation, the credentials are encrypted (AES-256-GCM) and stored securely within the Supabase database.
+   - Upon successful validation, the credentials are encrypted (AES-256-GCM) and stored securely within the Supabase database via the `supabaseAdmin` client.
 
 2. **Orchestration**
    - The **Orchestrator Agent** initiates cycles from the backend. The dashboard automatically signals the orchestrator to kick off an analysis cycle immediately upon connection and subsequently runs intervals (e.g., every 5 minutes).
    - This starts the pipeline: Rule Generation → Telemetry Syncing → Event Triage → Automated Containment → Incident Reporting.
 
 3. **Rule Architect (Rule Generation)**
-   - The **Rule Architect Agent**, powered by OpenAI's GPT-5, analyzes the specific shape of the connected AWS account.
+   - The **Rule Architect Agent**, powered by OpenAI's GPT-5 via Lovable's AI Gateway, analyzes the specific shape of the connected AWS account.
    - It generates tailored baseline detection rules, complete with MITRE ATT&CK techniques, descriptions, and severities, storing them in the `detection_rules` table.
 
 4. **Telemetry Sync (Data Ingestion)**
    - The **Telemetry Agent** runs securely utilizing pure deterministic AWS API calls (SigV4).
    - It queries AWS CloudTrail (via `CloudTrail_20131101.LookupEvents`) and AWS GuardDuty (via `GetFindings`) to retrieve the latest events from the past 24 hours.
-   - Concurrently, if an Elasticsearch cluster is connected, the **Elasticsearch Sync Agent** will query the cluster for recent logs.
+   - Concurrently, if an Elasticsearch cluster is connected, the **Elasticsearch Sync Agent** will query the cluster for recent logs using standard API Key authorization.
    - All pulled raw events are normalized and temporarily stored in the `findings` table as unanalyzed.
 
 5. **Triage Agent (Event Classification)**
-   - Unanalyzed findings are batched and sent to the **Triage Agent**, powered by Google's Gemini 2.5 Flash.
+   - Unanalyzed findings are batched and sent to the **Triage Agent**, powered by Google's Gemini 2.5 Flash via Lovable's AI Gateway.
    - The LLM classifies each event's category, scores its severity (Low, Medium, High, Critical), produces a one-line human-readable summary, and recommends concrete remediation steps.
    - The `findings` table records are updated with these AI attributes.
 
@@ -148,7 +153,7 @@ graph TD
 Every process in STRATA is offloaded to one of six specialized autonomous agents. None of them require human intervention after the initial connection.
 
 * **Rule Architect:** Uses a deep-reasoning model (GPT-5) to draft a tailored detection ruleset. Instead of static, hardcoded rules, the architect provides rules tagged with MITRE techniques, severity scores, and account-specific contexts.
-* **Telemetry:** A deterministic agent executing signed AWS API calls. It pulls CloudTrail and GuardDuty findings on every cycle and normalizes disparate events into a single stream for processing.
+* **Telemetry:** A deterministic agent executing signed AWS API calls via SigV4. It pulls CloudTrail and GuardDuty findings on every cycle and normalizes disparate events into a single stream for processing.
 * **Triage:** Powered by Gemini 2.5 Flash for high-volume analysis. It reads the raw JSON of every ingested event and provides four outputs: severity, category, a 2-3 sentence explanation, and a specific remediation action.
 * **Containment:** A deterministic agent that takes action. If a critical threat is linked to a specific IAM Access Key, this agent calls `iam:UpdateAccessKey` to immediately deactivate the key.
 * **Reporter:** Powered by GPT-5. Instead of alerting the user for every single finding, it stitches correlated high and critical severity findings into full incident reports written for a CISO, complete with a timeline and affected resources.
@@ -178,6 +183,13 @@ STRATA supports aggregating security findings beyond native AWS APIs.
 * The **Elasticsearch Sync Agent** uses an API key to securely query the cluster.
 * Findings pulled from Elasticsearch are strictly **additive** to AWS findings.
 * Note: Elasticsearch syncing requires the user to click the "Sync" button (or enable auto-sync), at which point logs are normalized and run through the exact same Triage and Reporter agents as standard CloudTrail logs.
+
+### Supabase & Lovable Integration
+
+The platform heavily relies on external services to orchestrate its autonomous workflow.
+* **Supabase:** Used for persistence with PostgreSQL. Authentication is handled natively, and Row Level Security (RLS) restricts data access per user. Backend interactions strictly use the `supabaseAdmin` service role client to ensure secure access to encrypted credentials. Custom edge functions via TanStack server functions power the application workflows.
+* **Lovable AI Gateway:** Both the Triage agent (Gemini 2.5 Flash) and the Rule Architect / Reporter agents (GPT-5) make requests to `ai.gateway.lovable.dev` using the `LOVABLE_API_KEY` to evaluate cloud findings securely. Lovable is also leveraged to provide OAuth authentication on the frontend.
+* **SigV4 Crypto:** AWS authentication is fully implemented without the AWS SDK. The SigV4 generation module (in `crypto.ts` and `sigv4.ts`) creates the canonical requests necessary to securely query the AWS REST API directly.
 
 ---
 
