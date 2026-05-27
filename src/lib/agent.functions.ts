@@ -177,7 +177,7 @@ ${JSON.stringify(finding ?? {}, null, 2).slice(0, 4000)}`;
     const explanation = String(j?.choices?.[0]?.message?.content ?? "").trim();
     if (!explanation) return { ok: false as const, error: "empty" };
     await supabaseAdmin.from("agent_actions").update({
-      details: { ...(action.details ?? {}), ai_explanation: explanation },
+      details: { ...((action.details as any) ?? {}), ai_explanation: explanation },
     }).eq("id", action.id);
     return { ok: true as const, explanation, cached: false };
   });
