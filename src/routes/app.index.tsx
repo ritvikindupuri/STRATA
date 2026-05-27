@@ -12,6 +12,8 @@ export const Route = createFileRoute("/app/")({ component: Dashboard });
 
 function Dashboard() {
   const autopilot = useServerFn(runAutopilot);
+  const doClear = useServerFn(clearSession);
+  const [clearing, setClearing] = useState(false);
   const ranRef = useRef(false);
 
   const conn = useQuery({
