@@ -124,3 +124,62 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     </div>
   );
 }
+
+function RuleCard({ rule }: { rule: any }) {
+  const [open, setOpen] = useState(false);
+  const matches = useQuery({
+    queryKey: ["rule-matches", rule.id],
+    enabled: open,
+    queryFn: async () => {
+      const events: string[] = rule.match_event_names ?? [];
+      const keywords: string[] = rule.match_keywords ?? [];
+      const filters: string[] = [];
+      if (events.length) filters.push(`event_name.in.(${events.map((e) => `"${e}"`).join(",")})`);
+      for (const k of keywords.slice(0, 8)) {
+        const safe = k.replace(/[%,]/g, "");
+        filters.push(`ai_summary.ilike.%${safe}%`);
+        filters.push(`title.ilike.%${safe}%`);
+      }
+      if (!filters.length) return [];
+      const { data } = await supabase.from("findings").select("id,title,event_name,ai_severity,event_time,username,source_ip").or(filters.join(",")).order("event_time", { ascending: false }).limit(25);
+      return data ?? [];
+    },
+  });
+  return (
+    <div className="rounded-lg border border-border bg-card/40 p-4 card-elevated">
+      <button onClick={() => setOpen((v) => !v)} className="w-full text-left">
+        <div className="flex items-start justify-between gap-2">
+          <span className="font-display text-sm font-semibold">{rule.name}</span>
+          <span className="rounded px-2 py-0.5 font-mono text-[10px] uppercase" style={{ background: `color-mix(in oklab, ${sevColor(rule.severity)} 15%, transparent)`, color: sevColor(rule.severity) }}>{rule.severity}</span>
+        </div>
+        <p className="mt-2 text-sm text-muted-foreground">{rule.description}</p>
+        {rule.mitre_technique && <p className="mt-2 font-mono text-[10px] text-primary/80">MITRE · {rule.mitre_technique}</p>}
+        {rule.match_event_names?.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1">
+            {rule.match_event_names.slice(0, 8).map((e: string) => <span key={e} className="rounded bg-background/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">{e}</span>)}
+          </div>
+        )}
+        <p className="mt-3 font-mono text-[10px] text-primary">{open ? "▾ hide matching findings" : "▸ show matching findings"}</p>
+      </button>
+      {open && (
+        <div className="mt-3 border-t border-border pt-3 animate-float-up">
+          {matches.isLoading && <div className="font-mono text-xs text-muted-foreground">Searching findings…</div>}
+          {!matches.isLoading && (matches.data ?? []).length === 0 && (
+            <div className="font-mono text-xs text-muted-foreground">No findings have matched this rule yet.</div>
+          )}
+          <ul className="space-y-2">
+            {(matches.data ?? []).map((f: any) => (
+              <li key={f.id} className="rounded border border-border bg-background/40 px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate text-sm">{f.title || f.event_name}</span>
+                  <span className="rounded px-1.5 py-0.5 font-mono text-[10px] uppercase" style={{ background: `color-mix(in oklab, ${sevColor(f.ai_severity)} 15%, transparent)`, color: sevColor(f.ai_severity) }}>{f.ai_severity ?? "—"}</span>
+                </div>
+                <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">{f.username ?? "—"} · {f.source_ip ?? "—"} · {f.event_time ? formatDistanceToNow(new Date(f.event_time), { addSuffix: true }) : ""}</div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
