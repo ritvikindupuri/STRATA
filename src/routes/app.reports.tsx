@@ -96,22 +96,9 @@ function ReportsPage() {
 
       <section className="mt-12">
         <h2 className="font-display text-xl font-semibold flex items-center gap-2"><AlertTriangle className="h-5 w-5 text-primary" /> Active detection rules</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Click a rule to see the findings it matched. Findings are matched by event name or keyword overlap with the rule definition.</p>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          {(rules.data ?? []).map((r: any) => (
-            <div key={r.id} className="rounded-lg border border-border bg-card/40 p-4 card-elevated">
-              <div className="flex items-start justify-between gap-2">
-                <span className="font-display text-sm font-semibold">{r.name}</span>
-                <span className="rounded px-2 py-0.5 font-mono text-[10px] uppercase" style={{ background: `color-mix(in oklab, ${sevColor(r.severity)} 15%, transparent)`, color: sevColor(r.severity) }}>{r.severity}</span>
-              </div>
-              <p className="mt-2 text-sm text-muted-foreground">{r.description}</p>
-              {r.mitre_technique && <p className="mt-2 font-mono text-[10px] text-primary/80">MITRE · {r.mitre_technique}</p>}
-              {r.match_event_names?.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {r.match_event_names.slice(0, 8).map((e: string) => <span key={e} className="rounded bg-background/60 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">{e}</span>)}
-                </div>
-              )}
-            </div>
-          ))}
+          {(rules.data ?? []).map((r: any) => <RuleCard key={r.id} rule={r} />)}
           {!rules.data?.length && (
             <div className="rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground md:col-span-2">
               No rules yet — run Autopilot to generate a tailored ruleset.
