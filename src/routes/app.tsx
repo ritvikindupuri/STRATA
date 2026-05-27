@@ -28,7 +28,9 @@ function AppLayout() {
     { to: "/app", label: "Dashboard", icon: LayoutDashboard, exact: true },
     { to: "/app/timeline", label: "Timeline", icon: GitCommitHorizontal },
     { to: "/app/findings", label: "Findings", icon: ListTree },
+    { to: "/app/blocked", label: "Auto-blocks", icon: ShieldX },
     { to: "/app/reports", label: "Reports & Rules", icon: FileText },
+    { to: "/app/history", label: "History", icon: History },
     { to: "/app/connect", label: "Connect AWS", icon: Cloud },
   ];
 
