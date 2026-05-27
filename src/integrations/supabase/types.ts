@@ -86,6 +86,36 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_sessions: {
+        Row: {
+          created_at: string
+          findings: number
+          id: string
+          reports: number
+          runs: number
+          stats_rollup: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          findings?: number
+          id?: string
+          reports?: number
+          runs?: number
+          stats_rollup?: Json
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          findings?: number
+          id?: string
+          reports?: number
+          runs?: number
+          stats_rollup?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
       aws_connections: {
         Row: {
           access_key_id: string

@@ -97,6 +97,91 @@ export const regenerateRules = createServerFn({ method: "POST" })
     return { ok: true as const, created };
   });
 
+// ---------- Clear current session (wipes findings/runs/actions/reports/rules) ----------
+export const clearSession = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const uid = context.userId;
+    // Snapshot run count for the history record before wiping
+    const { data: runs } = await supabaseAdmin
+      .from("agent_runs").select("id, stats").eq("user_id", uid);
+    const { data: findingsCount } = await supabaseAdmin
+      .from("findings").select("id", { count: "exact", head: true }).eq("user_id", uid);
+    const { data: reportsCount } = await supabaseAdmin
+      .from("incident_reports").select("id", { count: "exact", head: true }).eq("user_id", uid);
+
+    await (supabaseAdmin as any).from("agent_sessions").insert({
+      user_id: uid,
+      runs: runs?.length ?? 0,
+      findings: (findingsCount as any)?.length ?? 0,
+      reports: (reportsCount as any)?.length ?? 0,
+      stats_rollup: (runs ?? []).reduce((acc: any, r: any) => {
+        for (const k of Object.keys(r.stats ?? {})) acc[k] = (acc[k] ?? 0) + (r.stats[k] ?? 0);
+        return acc;
+      }, {}),
+    });
+
+    await Promise.all([
+      supabaseAdmin.from("findings").delete().eq("user_id", uid),
+      supabaseAdmin.from("agent_actions").delete().eq("user_id", uid),
+      supabaseAdmin.from("agent_runs").delete().eq("user_id", uid),
+      supabaseAdmin.from("incident_reports").delete().eq("user_id", uid),
+      supabaseAdmin.from("detection_rules").delete().eq("user_id", uid),
+    ]);
+    return { ok: true as const };
+  });
+
+// ---------- AI explanation for an auto-block action ----------
+export const explainBlock = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => {
+    const i = input as { action_id?: string };
+    if (!i.action_id) throw new Error("action_id required");
+    return { action_id: String(i.action_id) };
+  })
+  .handler(async ({ data, context }) => {
+    const { data: action } = await supabaseAdmin
+      .from("agent_actions").select("*").eq("id", data.action_id).eq("user_id", context.userId).maybeSingle();
+    if (!action) return { ok: false as const, error: "not found" };
+    if ((action.details as any)?.ai_explanation) {
+      return { ok: true as const, explanation: (action.details as any).ai_explanation, cached: true };
+    }
+    let finding: any = null;
+    if (action.finding_id) {
+      const r = await supabaseAdmin.from("findings").select("*").eq("id", action.finding_id).maybeSingle();
+      finding = r.data;
+    }
+    const apiKey = process.env.LOVABLE_API_KEY;
+    if (!apiKey) return { ok: false as const, error: "no api key" };
+    const prompt = `You are a SOC analyst. Explain — in 3 short paragraphs — why the autonomous containment agent took the following action and what the user should verify next. Be concrete, reference the finding evidence.
+
+Action: ${action.action_type} on ${action.target}
+Status: ${action.status}
+Initial reasoning: ${action.reasoning}
+
+Triggering finding:
+${JSON.stringify(finding ?? {}, null, 2).slice(0, 4000)}`;
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: "Write clearly and concretely for a security engineer reviewing automated containment." },
+          { role: "user", content: prompt },
+        ],
+      }),
+    });
+    if (!res.ok) return { ok: false as const, error: `ai ${res.status}` };
+    const j: any = await res.json();
+    const explanation = String(j?.choices?.[0]?.message?.content ?? "").trim();
+    if (!explanation) return { ok: false as const, error: "empty" };
+    await supabaseAdmin.from("agent_actions").update({
+      details: { ...((action.details as any) ?? {}), ai_explanation: explanation },
+    }).eq("id", action.id);
+    return { ok: true as const, explanation, cached: false };
+  });
+
 // ---------------- helpers ----------------
 
 async function loadConnection(userId: string) {

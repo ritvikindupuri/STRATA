@@ -2,16 +2,18 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
-import { runAutopilot } from "@/lib/agent.functions";
-import { useEffect, useRef } from "react";
+import { runAutopilot, clearSession } from "@/lib/agent.functions";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, Activity, ShieldCheck, Cloud, ArrowRight, Bot } from "lucide-react";
+import { AlertTriangle, Activity, ShieldCheck, Cloud, ArrowRight, Bot, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export const Route = createFileRoute("/app/")({ component: Dashboard });
 
 function Dashboard() {
   const autopilot = useServerFn(runAutopilot);
+  const doClear = useServerFn(clearSession);
+  const [clearing, setClearing] = useState(false);
   const ranRef = useRef(false);
 
   const conn = useQuery({
@@ -75,9 +77,28 @@ function Dashboard() {
           <h1 className="mt-1 font-display text-3xl font-semibold">Threat overview</h1>
         </div>
         {conn.data?.status === "connected" && (
-          <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3.5 py-1.5">
-            <Bot className="h-3.5 w-3.5 text-primary animate-pulse" />
-            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-primary">agents active</span>
+          <div className="flex items-center gap-2">
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3.5 py-1.5">
+              <Bot className="h-3.5 w-3.5 text-primary animate-pulse" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-primary">agents active</span>
+            </div>
+            <button
+              onClick={async () => {
+                if (!confirm("Clear current session?\n\nThis archives a snapshot under History, then wipes findings, runs, blocks, reports, and rules. Your AWS connection stays.")) return;
+                setClearing(true);
+                const t = toast.loading("Clearing session…");
+                try {
+                  const r: any = await doClear();
+                  toast.dismiss(t);
+                  if (r?.ok) { toast.success("Session cleared"); ranRef.current = false; findings.refetch(); }
+                  else toast.error(r?.error ?? "Failed to clear");
+                } finally { setClearing(false); }
+              }}
+              disabled={clearing}
+              className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/40 px-3.5 py-1.5 text-xs text-muted-foreground hover:border-critical/40 hover:text-foreground disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Clear session
+            </button>
           </div>
         )}
       </header>
