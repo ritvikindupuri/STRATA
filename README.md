@@ -9,91 +9,25 @@ Furthermore, STRATA doesn't just alert you to danger; it can actively stop it. W
 
 ## System Architecture
 
-<div align="center">
-  <h3>Figure 1: STRATA System Architecture</h3>
-</div>
-
-```mermaid
-graph TD
-    subgraph "External Cloud Services"
-        AWS_CT["AWS CloudTrail"]
-        AWS_GD["AWS GuardDuty"]
-        ES_Cluster["Elasticsearch / OpenSearch (Optional)"]
-    end
-
-    subgraph "STRATA Frontend (TanStack Start + React)"
-        Dashboard["Dashboard View"]
-        Timeline["Timeline View"]
-        Findings["Findings Explorer"]
-        Connect["AWS / ES Connection Wizard"]
-        Reports["Reports & Rules"]
-    end
-
-    subgraph "STRATA Backend / Server Functions"
-        Orchestrator["Orchestrator (Server Loop)"]
-        Telemetry["Telemetry Agent (AWS SigV4)"]
-        RuleArch["Rule Architect (GPT-5)"]
-        TriageAgent["Triage Agent (Gemini 2.5 Flash)"]
-        Containment["Containment Agent (AWS IAM)"]
-        Reporter["Reporter Agent (GPT-5)"]
-        ES_Sync["Elasticsearch Sync Agent"]
-    end
-
-    subgraph "Persistence (Supabase)"
-        DB_Connections[("AWS Connections")]
-        DB_Findings[("Findings")]
-        DB_Rules[("Detection Rules")]
-        DB_Actions[("Agent Actions")]
-        DB_Reports[("Incident Reports")]
-        DB_Sessions[("Agent Sessions")]
-    end
-
-    %% Flow lines
-    Connect -->|Validates Keys via STS| DB_Connections
-    Orchestrator -->|Triggers| Telemetry
-    Orchestrator -->|Triggers| RuleArch
-    Orchestrator -->|Triggers| Containment
-    Orchestrator -->|Triggers| Reporter
-
-    AWS_CT -->|Polled via LookupEvents| Telemetry
-    AWS_GD -->|Polled via GetFindings| Telemetry
-    ES_Cluster -->|Polled via Search| ES_Sync
-
-    Telemetry -->|Stores Raw Events| DB_Findings
-    ES_Sync -->|Stores Raw Events| DB_Findings
-
-    RuleArch <-->|Generates based on shape| DB_Rules
-
-    DB_Findings -->|Unanalyzed Events| TriageAgent
-    TriageAgent -->|Updates Severity/Category| DB_Findings
-
-    DB_Findings -->|High/Critical Events| Containment
-    Containment -->|Deactivates Key via UpdateAccessKey| AWS_CT
-    Containment -->|Logs Action| DB_Actions
-
-    DB_Findings -->|Correlated Criticals| Reporter
-    Reporter -->|Writes Report| DB_Reports
-
-    Dashboard -->|Reads Stats| DB_Findings
-    Dashboard -->|Reads Runs| DB_Sessions
-    Timeline -->|Reads| DB_Findings
-    Timeline -->|Reads| DB_Actions
-    Timeline -->|Reads| DB_Reports
-    Findings -->|Reads| DB_Findings
-    Reports -->|Reads| DB_Reports
-    Reports -->|Reads| DB_Rules
-```
+<p align="center">
+  <img src="https://i.imgur.com/L4cImPW.png" alt="STRATA AWS Intrusion Detection Architecture" width="100%" />
+</p>
+<p align="center"><strong>Figure 1: STRATA System Architecture & Autonomous Agent Pipeline</strong></p>
 
 ### Flow-by-Flow Explanation
 
-1. **Connection & Credential Validation:** User inputs read-only AWS IAM credentials (and optionally Elasticsearch credentials) in the STRATA frontend. The backend validates via `sts:GetCallerIdentity` (AWS SigV4) and encrypts/stores them securely in Supabase.
-2. **Orchestration:** The Orchestrator Agent runs server-side on a scheduled interval (e.g. every 5 minutes), triggering the sequential agent pipeline.
-3. **Rule Architect:** Powered by GPT-5, this agent generates a tailored baseline detection ruleset for the connected AWS account.
-4. **Telemetry Sync:** The Telemetry Agent queries CloudTrail and GuardDuty via deterministic AWS APIs to retrieve recent events. If Elasticsearch is connected, the Elasticsearch Sync Agent concurrently pulls logs. All raw events are stored in the findings table.
-5. **Triage:** The Triage Agent (Gemini 2.5 Flash) processes the unanalyzed findings, scoring severity, classifying categories, writing human-readable summaries, and suggesting remediation actions.
-6. **Containment:** If auto-response is enabled, the Containment Agent scans for critical, IAM-based threats and instantly disables the compromised Access Keys via `iam:UpdateAccessKey` requests.
-7. **Reporting:** The Reporter Agent (GPT-5) clusters correlated high/critical findings over the last 24 hours to automatically draft an executive-level incident report.
-8. **Frontend Visualization:** The user interface fetches enriched findings, reports, and agent actions from Supabase for display across the Dashboard, Timeline, and Findings modules.
+1. **Security Team & Dashboard (Box 1)**: Operators interact with the STRATA web dashboard to monitor live detections, review incident reports, manage ATT&CK-based detection rules, and configure account settings.
+2. **AWS Telemetry Ingestion (Box 2)**: STRATA pulls live cloud security telemetry directly from **AWS CloudTrail** (API activity & audit logs) and **Amazon GuardDuty** (threat detections & security findings).
+3. **STRATA 6-Agent Detection Pipeline (Box 3)**:
+   - **Step 1: Rule Architect**: Dynamically generates and updates account-tailored detection rules mapped to MITRE ATT&CK tactics and AWS best practices.
+   - **Step 2: Telemetry Collector**: Collects unanalyzed raw logs and findings from CloudTrail, GuardDuty, and optional log sources.
+   - **Step 3: Threat Triage (AI)**: Evaluates raw security events using Gemini 2.5 Flash to score risk, de-duplicate alerts, and isolate confirmed threats with context and severity ratings.
+   - **Step 4: Containment Agent**: Automatically deactivates compromised IAM access keys via `iam:UpdateAccessKey` the moment high-confidence, critical threats are confirmed (when auto-response is enabled).
+   - **Step 5: Incident Reporter**: Clusters correlated high/critical findings over 24-hour windows to synthesize detailed executive incident reports (Markdown/JSON) and timelines using GPT-5.
+   - **Step 6: Log Indexer (Elasticsearch)**: Concurrently indexes telemetry into Elasticsearch for high-performance log searching and correlation.
+4. **Primary Data Store (Box 4)**: Persists all operational state in **Supabase PostgreSQL** (`agent_runs`, `findings`, `agent_actions`, `incident_reports`, `detection_rules`, and `aws_connections`).
+5. **Search & Analytics Integration (Box 5)**: Optional **Elasticsearch / OpenSearch** cluster integration for fast log queries and cross-dataset threat correlation.
+6. **Outputs & Visibility (Box 6)**: Exposes 6 dedicated dashboard modules: **Real-time Detections**, **Incident Timeline**, **Incident Reports**, **Containment Log**, **Search & Correlation**, and **Rule Management**.
 
 ## Technical Documentation
 
