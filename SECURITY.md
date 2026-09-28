@@ -42,14 +42,14 @@ This document outlines the defensive security measures implemented in STRATA and
 - **Elasticsearch connection** - Already had Zod URL validation (`.url()`)
 
 #### 4. Prompt Injection Guardrails
-- **Input truncation** - All event data sent to LLMs is truncated to 6000 characters (CloudTrail analysis) or 9000 characters (incident reports)
-- **Rate limiting** - Added `RateLimiter` class for AI API calls (20 calls per minute per user)
-- **Strict JSON-only responses** - System prompts enforce JSON-only output with no markdown or prose
-- **Low temperature** - AI calls use temperature 0.2-0.3 for deterministic, factual responses
-- **Note:** LLM output drives containment actions (IAM key deactivation), but:
-  - Containment requires explicit user opt-in (`auto_response_enabled` flag)
-  - Self-protection prevents disabling STRATA's own IAM credentials
-  - All actions are logged to `agent_actions` table for audit
+- **Untrusted data delimiting** - All user/event data in prompts is wrapped with clear boundaries (`===== BEGIN USER DATA =====` / `===== END USER DATA =====`)
+- **Strict Zod schema validation** - All LLM responses validated with TypeScript Zod schemas (`SecurityAnalysisSchema`, `DetectionRulesSchema`, `IncidentReportSchema`)
+- **Input truncation** - Event data truncated to 6KB (CloudTrail) or 9KB (reports) to prevent oversized payloads
+- **Rate limiting** - Strict rate limits: 20 AI calls/min per user, enforced at application level
+- **Deterministic safeguards** - Self-protection check (never disable STRATA's own IAM credentials) runs outside LLM control
+- **Human approval required** - LLM-triggered AWS writes (IAM key deactivation) require explicit human approval via `pending_approvals` table
+- **Low temperature** - AI calls use temperature 0.2-0.3 for deterministic responses
+- **System prompts** - Explicit instructions to treat user data as untrusted and ignore embedded instructions
 
 #### 5. AWS Credential Handling
 - **Least privilege by default** - README documents read-only IAM policy (CloudTrail:LookupEvents, GuardDuty:List*/Get*)
@@ -73,29 +73,111 @@ This document outlines the defensive security measures implemented in STRATA and
   - `agent_runs` - Own runs only
   - `agent_sessions` - Own sessions only
 
-#### 7. Dependency Security
+#### 7. Rate Limiting
+- **Implemented production-grade rate limiting** (`src/lib/rate-limit.ts`)
+  - Per-user and per-IP tracking with automatic cleanup
+  - Returns HTTP 429 with `Retry-After` header when limits exceeded
+- **Rate limits by endpoint type:**
+  - AI analysis: 20 requests/min per user
+  - AWS sync: 10 requests/min per user (expensive AWS API calls)
+  - AWS connection validation: 5 requests/hour per IP
+  - Autopilot runs: 30 requests/hour per user
+  - Generic expensive operations: 60 requests/min per user
+- **Applied to all sensitive endpoints** - Agent functions, AWS functions, AI calls
+
+#### 8. CORS (Fail-Closed)
+- **Implemented fail-closed CORS** (`src/lib/cors.ts`)
+- **Environment-driven allowlist** - `ALLOWED_ORIGINS` env var (comma-separated domains)
+- **Fails closed** - If `ALLOWED_ORIGINS` is unset or invalid, ALL cross-origin requests are blocked with HTTP 403
+- **Preflight handling** - OPTIONS requests checked against allowlist
+- **Security headers** - Proper CORS headers only sent to allowed origins
+
+#### 9. Security Headers (Comprehensive)
+- **Implemented via middleware** (`src/lib/security-headers.ts`)
+- **Content Security Policy (CSP)** - Strict policy allowing only:
+  - Self-hosted scripts and styles
+  - Inline styles (required for Tailwind/shadcn)
+  - Google Fonts (fonts.googleapis.com, fonts.gstatic.com)
+  - Supabase (*.supabase.co)
+  - Lovable AI gateway (ai.gateway.lovable.dev)
+  - `unsafe-eval` only in dev mode for Vite HMR
+  - `frame-ancestors 'none'` (prevent clickjacking)
+- **HSTS** - `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload` (production only)
+- **X-Content-Type-Options** - `nosniff`
+- **X-Frame-Options** - `DENY` (backup for CSP)
+- **Referrer-Policy** - `strict-origin-when-cross-origin`
+- **Cross-Origin Policies:**
+  - `Cross-Origin-Opener-Policy: same-origin` (isolate browsing context)
+  - `Cross-Origin-Resource-Policy: same-origin`
+  - `Cross-Origin-Embedder-Policy: require-corp`
+- **Permissions-Policy** - Disable all unnecessary browser features (geolocation, microphone, camera, payment, USB, etc.)
+- **Remove server identification** - `X-Powered-By` header removed
+
+#### 10. Append-Only Audit Log
+- **Created `audit_log` table** (`supabase/migrations/20260928150500_audit_log_and_approval.sql`)
+- **Immutable** - No UPDATE or DELETE allowed (RLS policies enforce append-only)
+- **Comprehensive logging** - All privileged actions logged with:
+  - User ID, action type, resource type/ID
+  - Full details (redacted for secrets)
+  - IP address and user agent
+  - Status (success/failure/blocked)
+  - Timestamp
+- **Service role only inserts** - Clients cannot write directly (prevents tampering)
+- **Audit actions tracked:** Login, AWS connect/disconnect, agent runs, containment approvals, rule generation, data sync, settings changes
+- **Helper module** (`src/lib/audit.ts`) for easy audit logging
+
+#### 11. Human Approval for AWS Writes
+- **Created `pending_approvals` table** - Human-in-the-loop for LLM-triggered AWS writes
+- **Replaced auto-containment** - Instead of immediately disabling IAM keys, agent creates approval requests
+- **Approval workflow:**
+  1. LLM analysis identifies critical finding
+  2. System creates `pending_approval` entry with reasoning
+  3. User reviews finding + AI reasoning in UI
+  4. User explicitly approves or rejects
+  5. On approval: deterministic check runs (never disable STRATA's own key), then AWS API call
+  6. All steps logged to `audit_log`
+- **1-hour expiry** - Pending approvals expire after 1 hour
+- **RLS protected** - Users can only see/approve their own requests
+- **New function** - `handleApproval()` for approve/reject actions
+
+#### 12. Server-Side Authorization
+- **Authorization module** (`src/lib/authorization.ts`)
+- **Not just JWT validation** - Verifies user owns the resources they're accessing
+- **Resource ownership checks:**
+  - AWS connections
+  - Findings
+  - Detection rules
+  - Incident reports
+  - Agent actions
+- **Applied to all server functions** - Every function verifies resource ownership before allowing access
+- **Returns generic 403** - "Unauthorized" error if ownership check fails
+
+#### 13. Log/Secret Redaction
+- **Redaction module** (`src/lib/redaction.ts`)
+- **Patterns detected:** AWS access keys, API keys, JWTs, Supabase keys, bearer tokens, generic secrets/passwords
+- **Recursive redaction** - Works on nested objects and arrays
+- **Key-based redaction** - Automatically redacts known secret keys (secret, password, token, api_key, access_key)
+- **Generic client errors** - Production errors return generic messages (no internal details leaked)
+- **Request ID tracking** - Errors logged server-side with request ID for correlation
+- **Applied to:** Audit logs, error responses, console logs
+
+#### 14. Dependency Security
 - **Dependabot configured** (`.github/dependabot.yml`) - Automated weekly dependency updates
 - **Grouped updates** - Separate groups for production and development dependencies
 - **PR limit** - Max 10 open PRs to keep updates manageable
 
-#### 8. GitHub Actions Security
-- **Least-privilege permissions** - Workflows use minimal `permissions:` blocks
-- **CI workflow** (`ci.yml`) - `contents: read` only for lint and build
-- **Security workflow** (`security.yml`) - Dependency review, npm audit, secret scanning (TruffleHog)
-- **No credentials in workflows** - Uses `persist-credentials: false` for checkout
-- **Automated scans** - Weekly scheduled security scans
-
-#### 9. Frontend Security Headers
-- **CSP not implemented** - TanStack Start deployment to Cloudflare Pages doesn't have built-in CSP config
-- **Recommendation:** Configure CSP via Cloudflare Page Rules or `_headers` file when deploying:
-  ```
-  /*
-    Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://ylrbjzvkjnavogqirmby.supabase.co https://ai.gateway.lovable.dev;
-    X-Content-Type-Options: nosniff
-    X-Frame-Options: DENY
-    Referrer-Policy: strict-origin-when-cross-origin
-    Permissions-Policy: geolocation=(), microphone=(), camera=()
-  ```
+#### 15. GitHub Actions Security (Hardened)
+- **Actions pinned to SHAs** - All actions use full commit SHA instead of tags (prevents tag hijacking)
+  - `actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871` # v4.2.1
+  - `actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6` # v4.0.4
+  - `actions/dependency-review-action@4081bf99e2866ebe428fc0477b69eb4fcda7220a` # v4.4.0
+  - `trufflesecurity/trufflehog@5266524c5f82b637c84a6b13bf84eb6cd3c4b3bf` # v3.84.2
+  - `gitleaks/gitleaks-action@1f2d10fb689667018f7c8f454b8f133e1b898e17` # v2.3.7
+- **npm audit fails on high** - CI fails if high-severity vulnerabilities detected
+- **Added Gitleaks** - Comprehensive secret scanning (in addition to TruffleHog)
+- **Least-privilege permissions** - All workflows use minimal `permissions:` blocks
+- **No credential persistence** - `persist-credentials: false` for all checkouts
+- **Weekly scheduled scans** - Security checks run weekly even without code changes
 
 ### Residual Risks (Cannot Be Fixed in Code)
 
