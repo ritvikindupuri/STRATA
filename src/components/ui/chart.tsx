@@ -85,7 +85,7 @@ ${colorConfig
   .map(([key, itemConfig]) => {
     const color = itemConfig.theme?.[theme as keyof typeof itemConfig.theme] || itemConfig.color;
     // Sanitize color values to prevent XSS via malicious config
-    if (!color || typeof color !== 'string') return null;
+    if (!color || typeof color !== "string") return null;
     // Only allow safe CSS color patterns
     if (!/^(#[0-9a-fA-F]{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\)|hsl\([^)]+\)|[a-z]+)$/.test(color)) {
       return null;

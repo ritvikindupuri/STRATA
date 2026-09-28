@@ -11,14 +11,17 @@ export function HeroCanvas() {
     const canvas = ref.current!;
     const ctx = canvas.getContext("2d")!;
     let raf = 0;
-    let w = 0, h = 0;
+    let w = 0,
+      h = 0;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const pointer = { x: 0.5, y: 0.5, active: false };
 
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
-      w = rect.width; h = rect.height;
-      canvas.width = w * dpr; canvas.height = h * dpr;
+      w = rect.width;
+      h = rect.height;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
     resize();
@@ -31,7 +34,9 @@ export function HeroCanvas() {
       pointer.y = (e.clientY - r.top) / r.height;
       pointer.active = true;
     };
-    const onLeave = () => { pointer.active = false; };
+    const onLeave = () => {
+      pointer.active = false;
+    };
     canvas.addEventListener("pointermove", onMove);
     canvas.addEventListener("pointerleave", onLeave);
 
@@ -74,8 +79,9 @@ export function HeroCanvas() {
       for (let i = LAYERS - 1; i >= 0; i--) {
         const depth = i / (LAYERS - 1);
         const lw = widest * (1 - depth * 0.55);
-        const y = baseY - i * layerGap - (pointer.active ? (pointer.y - 0.5) * 18 * (1 - depth) : 0);
-        const tilt = (pointer.active ? (pointer.x - 0.5) * 80 * (1 - depth) : 0);
+        const y =
+          baseY - i * layerGap - (pointer.active ? (pointer.y - 0.5) * 18 * (1 - depth) : 0);
+        const tilt = pointer.active ? (pointer.x - 0.5) * 80 * (1 - depth) : 0;
         const x0 = cx - lw / 2 + tilt;
         const x1 = cx + lw / 2 + tilt;
         const alpha = 0.15 + (1 - depth) * 0.4;
@@ -99,13 +105,17 @@ export function HeroCanvas() {
       // Packets
       for (const p of packets) {
         p.t += p.speed * (dt / 1000);
-        if (p.t > 1) { p.t = 0; p.threat = Math.random() < 0.16; p.layer = Math.floor(Math.random() * LAYERS); }
+        if (p.t > 1) {
+          p.t = 0;
+          p.threat = Math.random() < 0.16;
+          p.layer = Math.floor(Math.random() * LAYERS);
+        }
         const depth = p.layer / (LAYERS - 1);
         const lw = widest * (1 - depth * 0.55);
         const y = baseY - p.layer * layerGap;
-        const tilt = (pointer.active ? (pointer.x - 0.5) * 80 * (1 - depth) : 0);
+        const tilt = pointer.active ? (pointer.x - 0.5) * 80 * (1 - depth) : 0;
         const x = cx - lw / 2 + lw * p.t + tilt;
-        const color = p.threat ? red : (p.layer % 2 ? violet : cyan);
+        const color = p.threat ? red : p.layer % 2 ? violet : cyan;
         const r = p.threat ? 3.5 : 2;
 
         const trailGrad = ctx.createLinearGradient(x - 34, y, x, y);
@@ -136,7 +146,8 @@ export function HeroCanvas() {
 
     let last = performance.now();
     const loop = (now: number) => {
-      const dt = Math.min(64, now - last); last = now;
+      const dt = Math.min(64, now - last);
+      last = now;
       draw(dt);
       raf = requestAnimationFrame(loop);
     };
