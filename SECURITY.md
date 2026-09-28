@@ -97,78 +97,111 @@ This document outlines the defensive security measures implemented in STRATA and
     Permissions-Policy: geolocation=(), microphone=(), camera=()
   ```
 
-### Residual Risks & Mitigations
+### Residual Risks (Cannot Be Fixed in Code)
 
-#### 1. LLM-Driven Containment Actions
-**Risk:** Prompt injection could potentially manipulate LLM responses to trigger unintended IAM key deactivation.
+All code-fixable security risks have been addressed. The following are operational/environmental risks that require manual configuration:
 
-**Mitigations:**
-- Auto-response is **opt-in** (disabled by default)
-- Self-protection: STRATA refuses to disable its own credentials
-- All containment actions logged to `agent_actions` with reasoning
-- Only acts on `critical` severity findings from last hour
-- Validates IAM user exists in finding metadata before acting
+#### 1. CORS Configuration for Production
+**Risk:** `ALLOWED_ORIGINS` environment variable must be set in production, or CORS will fail closed (block all origins).
 
-**Recommendation:** Monitor `agent_actions` table for unexpected blocks. Consider adding a manual approval workflow for containment actions in production environments.
+**Manual Step Required:**
+1. Set `ALLOWED_ORIGINS` environment variable in your deployment platform (e.g., Cloudflare Pages, Vercel)
+2. Value should be comma-separated list of allowed origins:
+   ```
+   ALLOWED_ORIGINS=https://yourdomain.com,https://app.yourdomain.com
+   ```
+3. Verify CORS works by testing cross-origin requests in browser DevTools
 
-#### 2. Elasticsearch Cluster Access
-**Risk:** If connected Elasticsearch cluster is compromised or malicious, it could inject false security events.
+**Why This Can't Be Fixed in Code:** Production domains are deployment-specific and unknown at build time.
 
-**Mitigations:**
-- Elasticsearch integration is optional (not required for core functionality)
-- URL validation ensures HTTPS only
-- API key stored encrypted
-- Events tagged with `source: "elasticsearch"` for traceability
-- Limit 50 events per sync
+#### 2. AWS IAM Permissions Review
+**Risk:** If auto-response is enabled, the AWS IAM user needs `iam:UpdateAccessKey` permission. Overly broad IAM permissions increase blast radius.
 
-**Recommendation:** Only connect trusted, internally-managed Elasticsearch clusters. Validate ES cluster authentication and network ACLs.
+**Manual Step Required:**
+1. Review the IAM policy attached to STRATA's IAM user
+2. For read-only mode (recommended initial deployment):
+   - Use `AWSCloudTrailReadOnlyAccess` and `AmazonGuardDutyReadOnlyAccess` managed policies
+3. For auto-response mode (after testing):
+   - Add inline policy with `iam:UpdateAccessKey` scoped to specific IAM users/roles
+   - Example:
+     ```json
+     {
+       "Version": "2012-10-17",
+       "Statement": [{
+         "Effect": "Allow",
+         "Action": "iam:UpdateAccessKey",
+         "Resource": "arn:aws:iam::ACCOUNT-ID:user/*"
+       }]
+     }
+     ```
+4. Use AWS Organizations SCPs to prevent privilege escalation on the STRATA IAM user
 
-#### 3. Supabase Anon Key Exposure
-**Risk:** Supabase anon keys were previously committed to git history.
+**Why This Can't Be Fixed in Code:** AWS permissions are configured in AWS IAM Console, not application code.
 
-**Mitigations:**
-- Anon keys are **designed** for client-side use (low risk by design)
-- RLS policies enforce user isolation - anon key cannot bypass RLS
-- Service role key (high privilege) is never committed
+#### 3. Supabase Anon Key Rotation (If Previously Exposed)
+**Risk:** Supabase anon keys were committed to git history before this PR.
 
-**Recommendation:** If concerned, rotate the Supabase anon key in the Supabase dashboard and update `.env`. Consider using Supabase's "Anonymous sign-ins" restriction if not needed.
+**Manual Step Required (if concerned):**
+1. Go to Supabase Dashboard > Settings > API
+2. Click "Rotate" next to the Anon/Public key
+3. Update `.env` with the new anon key
+4. Redeploy the application
 
-#### 4. AI API Key Security
-**Risk:** Lovable API key in `.env` grants access to LLM gateway.
+**Why This Can't Be Fixed in Code:** Git history cannot be rewritten retroactively. Rotation must be done in Supabase Dashboard.
 
-**Mitigations:**
-- Now in `.env` (not committed) and `.gitignore`d
-- Server-side only (never exposed to client)
-- Rate limited (20 calls/min per user)
+**Note:** Anon keys are low-risk by design (public keys with RLS protection). Only rotate if you suspect abuse.
 
-**Recommendation:** Rotate the Lovable API key as a precaution if it was previously exposed. Monitor usage in Lovable dashboard for anomalies.
+#### 4. Lovable API Key Rotation (If Previously Exposed)
+**Risk:** Lovable API key was in committed `.env` before this PR.
 
-#### 5. AWS Read-Only Permissions
-**Risk:** CloudTrail and GuardDuty contain sensitive security information.
+**Manual Step Required:**
+1. Contact Lovable support to rotate your API key
+2. Update `.env` with the new key
+3. Redeploy the application
 
-**Mitigations:**
-- Credentials stored encrypted at rest (AES-256-GCM)
-- Read-only by default (no write permissions unless auto-response enabled)
-- User-scoped RLS ensures isolation
+**Why This Can't Be Fixed in Code:** API key rotation requires contacting the service provider.
 
-**Recommendation:** Use a dedicated IAM user with minimal CloudTrail/GuardDuty read permissions. Enable CloudTrail encryption and GuardDuty findings export encryption in AWS.
+#### 5. Cloudflare Pages / Production Hosting Setup
+**Risk:** Security headers and CSP are set via application code, but hosting platform may override or strip headers.
 
-#### 6. No Runtime Application Security Monitoring (RASP)
-**Risk:** Application lacks runtime vulnerability detection beyond static dependency scanning.
+**Manual Step Required:**
+1. After deploying to Cloudflare Pages (or other hosting):
+   - Test that security headers are present: `curl -I https://yourdomain.com`
+   - Verify CSP, HSTS, X-Frame-Options, etc. are in response headers
+2. If headers are missing or stripped:
+   - Configure hosting platform to preserve application headers
+   - For Cloudflare Pages: Use Page Rules or `_headers` file as backup
+3. Test application loads correctly without CSP violations:
+   - Open browser DevTools Console
+   - Navigate through the app
+   - Verify no CSP errors
 
-**Recommendation:** Consider integrating runtime security tools like:
-- Snyk Runtime for Node.js vulnerability detection
-- CloudFlare WAF if deploying to Cloudflare Pages
-- Sentry for error tracking with security alert rules
+**Why This Can't Be Fixed in Code:** Hosting platform configuration is external to application code.
 
-#### 7. No Rate Limiting on Server Functions
-**Risk:** Server functions (TanStack Start) lack per-user rate limiting.
+#### 6. Elasticsearch Integration (If Used)
+**Risk:** If you connect an Elasticsearch cluster, it must be trusted and properly secured.
 
-**Mitigations:**
-- AI calls have application-level rate limiting (20/min per user)
-- Supabase has built-in rate limiting on database queries
+**Manual Step Required (if using Elasticsearch):**
+1. Only connect internally-managed Elasticsearch clusters
+2. Verify Elasticsearch cluster authentication (API key-based)
+3. Review Elasticsearch network ACLs (restrict to STRATA backend IPs only)
+4. Enable Elasticsearch audit logging
+5. Monitor for anomalous queries or data exfiltration
 
-**Recommendation:** Add middleware rate limiting (e.g., `@tanstack/react-start` middleware with in-memory rate limiter or Redis) for production deployments.
+**Why This Can't Be Fixed in Code:** Elasticsearch cluster configuration is external to STRATA.
+
+**Note:** Elasticsearch integration is optional and not required for core functionality.
+
+#### 7. Third-Party Runtime Security (Optional Enhancement)
+**Risk:** Static security scanning (npm audit, Dependabot, TruffleHog, Gitleaks) may not catch runtime exploits.
+
+**Manual Step (Optional):**
+Consider adding runtime security monitoring:
+- **Snyk Runtime** for Node.js runtime vulnerability detection
+- **Cloudflare WAF** if using Cloudflare Pages
+- **Sentry** with security alert rules for error monitoring
+
+**Why This Can't Be Fixed in Code:** These are external services that require separate setup and configuration.
 
 ### Best Practices for Operators
 
