@@ -301,6 +301,14 @@ function shouldAnalyzeCloudTrail(eventName: string): boolean {
 async function analyzeAndStore(findingId: string, row: any) {
   const apiKey = process.env.LOVABLE_API_KEY;
   if (!apiKey) return;
+  
+  // SECURITY: Validate AI gateway URL to prevent SSRF
+  const aiGatewayUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
+  if (!validateExternalUrl(aiGatewayUrl, ["ai.gateway.lovable.dev"])) {
+    console.error("Invalid AI gateway URL");
+    return;
+  }
+  
   const prompt = `You are a senior cloud security analyst. Analyze this AWS security event and return strict JSON:
 {
  "severity": "low|medium|high|critical",
@@ -313,7 +321,7 @@ Event:
 ${JSON.stringify(row.raw ?? row, null, 2).slice(0, 6000)}`;
 
   try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const res = await fetch(aiGatewayUrl, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
