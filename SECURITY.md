@@ -20,7 +20,7 @@ We will respond to your report within 48 hours and aim to release a patch within
 
 This document outlines the defensive security measures implemented in STRATA and identifies residual risks that operators should be aware of.
 
-### What Was Hardened (PR #X)
+### What Was Hardened (PR #8)
 
 #### 1. Secrets Management
 - **Removed committed .env file from repository** - Supabase keys were previously committed to git
