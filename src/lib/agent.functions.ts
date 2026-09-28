@@ -8,13 +8,32 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { signAwsRequest } from "@/lib/aws/sigv4";
 import { decryptSecret } from "@/lib/aws/crypto";
 import { syncFindings } from "@/lib/aws.functions";
+import { validateExternalUrl } from "@/lib/security";
+import { checkRateLimitByUser, RATE_LIMITS, createRateLimitResponse } from "@/lib/rate-limit";
+import { writeAuditLog, AUDIT_ACTIONS, getRequestMetadata } from "@/lib/audit";
+import { getAuthorizedAwsConnection, verifyActionOwnership, createUnauthorizedResponse } from "@/lib/authorization";
+import { createSafeErrorResponse } from "@/lib/redaction";
 
 // ---------- Public entry: run the full autonomous cycle ----------
 export const runAutopilot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const userId = context.userId;
-    const conn = await loadConnection(userId);
+    
+    // SECURITY: Rate limit autopilot runs (expensive operation)
+    const rateLimit = checkRateLimitByUser(userId, RATE_LIMITS.AUTOPILOT);
+    if (!rateLimit.allowed) {
+      return { ok: false as const, error: "Rate limit exceeded" };
+    }
+    
+    // SECURITY: Audit log start
+    await writeAuditLog({
+      user_id: userId,
+      action: AUDIT_ACTIONS.AGENT_RUN_START,
+      status: 'success',
+    });
+    
+    const conn = await getAuthorizedAwsConnection(userId);
     if (!conn) return { ok: false as const, error: "No AWS connection configured" };
 
     const { data: run } = await supabaseAdmin
@@ -24,7 +43,7 @@ export const runAutopilot = createServerFn({ method: "POST" })
       .single();
     const runId = run?.id;
     const errors: string[] = [];
-    const stats = { rules_created: 0, events_synced: 0, blocked: 0, reports: 0 };
+    const stats = { rules_created: 0, events_synced: 0, approvals_created: 0, reports: 0 };
 
     // 1. RULE GENERATION — ensure tailored detection rules exist
     try {
@@ -36,10 +55,19 @@ export const runAutopilot = createServerFn({ method: "POST" })
       if (!existing.data?.length) {
         const created = await generateRules(userId, conn.id);
         stats.rules_created = created;
-        await logAction(userId, conn.id, null, "rule_create", "ruleset", "success",
-          `Generated ${created} AI detection rules tailored to this AWS account`);
+        await logAction(
+          userId,
+          conn.id,
+          null,
+          "rule_create",
+          "ruleset",
+          "success",
+          `Generated ${created} AI detection rules tailored to this AWS account`,
+        );
       }
-    } catch (e: any) { errors.push(`rules: ${e.message}`); }
+    } catch (e: any) {
+      errors.push(`rules: ${e.message}`);
+    }
 
     // 2. SYNC — pull CloudTrail + GuardDuty (existing function, AI-analyzed)
     try {
@@ -47,27 +75,46 @@ export const runAutopilot = createServerFn({ method: "POST" })
       if (syncRes?.ok) {
         stats.events_synced = (syncRes.cloudtrail ?? 0) + (syncRes.guardduty ?? 0);
       } else if (syncRes?.error) errors.push(`sync: ${syncRes.error}`);
-    } catch (e: any) { errors.push(`sync: ${e.message}`); }
+    } catch (e: any) {
+      errors.push(`sync: ${e.message}`);
+    }
 
-    // 3. CONTAINMENT — auto-respond to critical IAM-key findings
+    // 3. CONTAINMENT — create approval requests (SECURITY: human-in-the-loop for AWS writes)
     if (conn.auto_response_enabled) {
       try {
-        stats.blocked = await autoContain(userId, conn);
-      } catch (e: any) { errors.push(`contain: ${e.message}`); }
+        stats.approvals_created = await createContainmentApprovals(userId, conn);
+      } catch (e: any) {
+        errors.push(`contain: ${e.message}`);
+      }
     }
 
     // 4. REPORT — cluster recent high/critical findings into an incident report
     try {
       const created = await generateIncidentReport(userId, conn.id);
       if (created) stats.reports = 1;
-    } catch (e: any) { errors.push(`report: ${e.message}`); }
+    } catch (e: any) {
+      errors.push(`report: ${e.message}`);
+    }
 
     if (runId) {
-      await supabaseAdmin.from("agent_runs").update({
-        status: errors.length ? "completed_with_errors" : "completed",
-        stats, errors, finished_at: new Date().toISOString(),
-      }).eq("id", runId);
+      await supabaseAdmin
+        .from("agent_runs")
+        .update({
+          status: errors.length ? "completed_with_errors" : "completed",
+          stats,
+          errors,
+          finished_at: new Date().toISOString(),
+        })
+        .eq("id", runId);
     }
+    
+    // SECURITY: Audit log completion
+    await writeAuditLog({
+      user_id: userId,
+      action: AUDIT_ACTIONS.AGENT_RUN_COMPLETE,
+      details: { stats },
+      status: errors.length === 0 ? 'success' : 'failure',
+    });
 
     return { ok: true as const, ...stats, errors };
   });
@@ -80,7 +127,8 @@ export const setAutoResponse = createServerFn({ method: "POST" })
     return { enabled: !!i.enabled };
   })
   .handler(async ({ data, context }) => {
-    await supabaseAdmin.from("aws_connections")
+    await supabaseAdmin
+      .from("aws_connections")
       .update({ auto_response_enabled: data.enabled })
       .eq("user_id", context.userId);
     return { ok: true as const };
@@ -97,6 +145,113 @@ export const regenerateRules = createServerFn({ method: "POST" })
     return { ok: true as const, created };
   });
 
+// ---------- SECURITY: Approve or reject a pending containment action ----------
+export const handleApproval = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => {
+    const i = input as { approval_id?: string; action?: "approve" | "reject" };
+    if (!i.approval_id || !i.action) throw new Error("approval_id and action required");
+    return { approval_id: String(i.approval_id), action: i.action };
+  })
+  .handler(async ({ data, context }) => {
+    const userId = context.userId;
+    
+    // SECURITY: Verify ownership of the approval
+    const { data: approval } = await supabaseAdmin
+      .from("pending_approvals")
+      .select("*")
+      .eq("id", data.approval_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    
+    if (!approval) return createUnauthorizedResponse();
+    
+    if (approval.status !== "pending") {
+      return { ok: false as const, error: "Approval already processed" };
+    }
+    
+    // Check expiry
+    if (new Date(approval.expires_at) < new Date()) {
+      return { ok: false as const, error: "Approval has expired" };
+    }
+    
+    if (data.action === "reject") {
+      // Reject the approval
+      await supabaseAdmin.from("pending_approvals").update({
+        status: "rejected",
+        approved_at: new Date().toISOString(),
+        approved_by: userId,
+      }).eq("id", approval.id);
+      
+      await writeAuditLog({
+        user_id: userId,
+        action: AUDIT_ACTIONS.CONTAINMENT_APPROVAL_DENIED,
+        resource_type: "iam_access_key",
+        resource_id: approval.target,
+        details: { reasoning: approval.reasoning },
+        status: 'success',
+      });
+      
+      return { ok: true as const, status: "rejected" };
+    }
+    
+    // Approve and execute the containment action
+    const conn = await getAuthorizedAwsConnection(userId);
+    if (!conn) return { ok: false as const, error: "No AWS connection" };
+    
+    const [userName, accessKeyId] = approval.target.split(":");
+    if (!userName || !accessKeyId) {
+      return { ok: false as const, error: "Invalid target format" };
+    }
+    
+    // SECURITY: Final deterministic check - never disable STRATA's own key
+    if (conn.aws_arn?.includes(userName)) {
+      await writeAuditLog({
+        user_id: userId,
+        action: AUDIT_ACTIONS.CONTAINMENT_APPROVAL_DENIED,
+        resource_type: "iam_access_key",
+        resource_id: accessKeyId,
+        details: { reason: "Attempted to disable STRATA's own credentials" },
+        status: 'blocked',
+      });
+      return { ok: false as const, error: "Cannot disable STRATA's own credentials" };
+    }
+    
+    const success = await deactivateAccessKey(conn, userName, accessKeyId);
+    
+    await supabaseAdmin.from("pending_approvals").update({
+      status: success ? "approved" : "rejected",
+      approved_at: new Date().toISOString(),
+      approved_by: userId,
+    }).eq("id", approval.id);
+    
+    await writeAuditLog({
+      user_id: userId,
+      action: success ? AUDIT_ACTIONS.CONTAINMENT_APPROVAL_GRANTED : AUDIT_ACTIONS.CONTAINMENT_APPROVAL_DENIED,
+      resource_type: "iam_access_key",
+      resource_id: accessKeyId,
+      details: {
+        user_name: userName,
+        reasoning: approval.reasoning,
+        execution_success: success,
+      },
+      status: success ? 'success' : 'failure',
+    });
+    
+    if (success) {
+      await writeAuditLog({
+        user_id: userId,
+        action: AUDIT_ACTIONS.CONTAINMENT_KEY_DISABLE,
+        resource_type: "iam_access_key",
+        resource_id: accessKeyId,
+        details: { user_name: userName },
+        status: 'success',
+      });
+    }
+    
+    return { ok: true as const, status: success ? "executed" : "failed" };
+  });
+
 // ---------- Clear current session (wipes findings/runs/actions/reports/rules) ----------
 export const clearSession = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -104,11 +259,17 @@ export const clearSession = createServerFn({ method: "POST" })
     const uid = context.userId;
     // Snapshot run count for the history record before wiping
     const { data: runs } = await supabaseAdmin
-      .from("agent_runs").select("id, stats").eq("user_id", uid);
+      .from("agent_runs")
+      .select("id, stats")
+      .eq("user_id", uid);
     const { data: findingsCount } = await supabaseAdmin
-      .from("findings").select("id", { count: "exact", head: true }).eq("user_id", uid);
+      .from("findings")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", uid);
     const { data: reportsCount } = await supabaseAdmin
-      .from("incident_reports").select("id", { count: "exact", head: true }).eq("user_id", uid);
+      .from("incident_reports")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", uid);
 
     await (supabaseAdmin as any).from("agent_sessions").insert({
       user_id: uid,
@@ -141,14 +302,26 @@ export const explainBlock = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     const { data: action } = await supabaseAdmin
-      .from("agent_actions").select("*").eq("id", data.action_id).eq("user_id", context.userId).maybeSingle();
+      .from("agent_actions")
+      .select("*")
+      .eq("id", data.action_id)
+      .eq("user_id", context.userId)
+      .maybeSingle();
     if (!action) return { ok: false as const, error: "not found" };
     if ((action.details as any)?.ai_explanation) {
-      return { ok: true as const, explanation: (action.details as any).ai_explanation, cached: true };
+      return {
+        ok: true as const,
+        explanation: (action.details as any).ai_explanation,
+        cached: true,
+      };
     }
     let finding: any = null;
     if (action.finding_id) {
-      const r = await supabaseAdmin.from("findings").select("*").eq("id", action.finding_id).maybeSingle();
+      const r = await supabaseAdmin
+        .from("findings")
+        .select("*")
+        .eq("id", action.finding_id)
+        .maybeSingle();
       finding = r.data;
     }
     const apiKey = process.env.LOVABLE_API_KEY;
@@ -161,13 +334,24 @@ Initial reasoning: ${action.reasoning}
 
 Triggering finding:
 ${JSON.stringify(finding ?? {}, null, 2).slice(0, 4000)}`;
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+
+    // SECURITY: Validate AI gateway URL
+    const aiGatewayUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
+    if (!validateExternalUrl(aiGatewayUrl, ["ai.gateway.lovable.dev"])) {
+      return { ok: false as const, error: "Invalid AI gateway URL" };
+    }
+
+    const res = await fetch(aiGatewayUrl, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: "Write clearly and concretely for a security engineer reviewing automated containment." },
+          {
+            role: "system",
+            content:
+              "Write clearly and concretely for a security engineer reviewing automated containment.",
+          },
           { role: "user", content: prompt },
         ],
       }),
@@ -176,9 +360,12 @@ ${JSON.stringify(finding ?? {}, null, 2).slice(0, 4000)}`;
     const j: any = await res.json();
     const explanation = String(j?.choices?.[0]?.message?.content ?? "").trim();
     if (!explanation) return { ok: false as const, error: "empty" };
-    await supabaseAdmin.from("agent_actions").update({
-      details: { ...((action.details as any) ?? {}), ai_explanation: explanation },
-    }).eq("id", action.id);
+    await supabaseAdmin
+      .from("agent_actions")
+      .update({
+        details: { ...((action.details as any) ?? {}), ai_explanation: explanation },
+      })
+      .eq("id", action.id);
     return { ok: true as const, explanation, cached: false };
   });
 
@@ -193,23 +380,38 @@ async function loadConnection(userId: string) {
   if (!data) return null;
   // Prefer encrypted secret, fall back to legacy plaintext
   const secret = data.encrypted_secret
-    ? safeDecrypt(data.encrypted_secret) ?? data.secret_access_key
+    ? (safeDecrypt(data.encrypted_secret) ?? data.secret_access_key)
     : data.secret_access_key;
   return { ...data, secret_access_key: secret };
 }
 
 function safeDecrypt(payload: string): string | null {
-  try { return decryptSecret(payload); } catch { return null; }
+  try {
+    return decryptSecret(payload);
+  } catch {
+    return null;
+  }
 }
 
 async function logAction(
-  userId: string, connectionId: string | null, findingId: string | null,
-  type: string, target: string | null, status: string, reasoning: string,
+  userId: string,
+  connectionId: string | null,
+  findingId: string | null,
+  type: string,
+  target: string | null,
+  status: string,
+  reasoning: string,
   details: Record<string, any> = {},
 ) {
   await supabaseAdmin.from("agent_actions").insert({
-    user_id: userId, connection_id: connectionId, finding_id: findingId,
-    action_type: type, target, status, reasoning, details,
+    user_id: userId,
+    connection_id: connectionId,
+    finding_id: findingId,
+    action_type: type,
+    target,
+    status,
+    reasoning,
+    details,
   });
 }
 
@@ -221,7 +423,14 @@ async function generateRules(userId: string, connectionId: string): Promise<numb
 Output STRICT JSON: { "rules": [ { "name": string, "description": string, "mitre_technique": string, "severity": "low|medium|high|critical", "match_event_names": string[], "match_keywords": string[] } ] }
 Generate 8-10 high-signal detection rules covering: credential exfiltration, privilege escalation, log tampering, persistence, defense evasion, suspicious console logins, security group exposure, S3/KMS data access.`;
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  // SECURITY: Validate AI gateway URL
+  const aiGatewayUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
+  if (!validateExternalUrl(aiGatewayUrl, ["ai.gateway.lovable.dev"])) {
+    console.error("Invalid AI gateway URL");
+    return 0;
+  }
+
+  const res = await fetch(aiGatewayUrl, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -236,9 +445,15 @@ Generate 8-10 high-signal detection rules covering: credential exfiltration, pri
   });
   if (!res.ok) return 0;
   const j: any = await res.json();
-  const content = (j?.choices?.[0]?.message?.content ?? "").replace(/^```json\s*|\s*```$/g, "").trim();
+  const content = (j?.choices?.[0]?.message?.content ?? "")
+    .replace(/^```json\s*|\s*```$/g, "")
+    .trim();
   let parsed: any;
-  try { parsed = JSON.parse(content); } catch { return 0; }
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return 0;
+  }
   const rules = Array.isArray(parsed?.rules) ? parsed.rules : [];
   if (!rules.length) return 0;
   const rows = rules.map((r: any) => ({
@@ -256,8 +471,9 @@ Generate 8-10 high-signal detection rules covering: credential exfiltration, pri
   return rows.length;
 }
 
-// ---------- Auto-containment: deactivate compromised access keys ----------
-async function autoContain(userId: string, conn: any): Promise<number> {
+// ---------- SECURITY: Create approval requests for containment (human-in-the-loop) ----------
+// LLM analysis cannot directly trigger AWS writes; requires explicit human approval
+async function createContainmentApprovals(userId: string, conn: any): Promise<number> {
   // Look at critical findings from the last hour that name an IAM user + access key
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { data: critical } = await supabaseAdmin
@@ -267,45 +483,110 @@ async function autoContain(userId: string, conn: any): Promise<number> {
     .eq("ai_severity", "critical")
     .gte("created_at", since);
 
-  let blocked = 0;
+  let created = 0;
   for (const f of critical ?? []) {
     const target = extractCompromisedKey(f);
     if (!target) continue;
-    // Avoid blocking the IAM user Strata itself uses
+    
+    // SECURITY: Deterministic check - never block STRATA's own credentials
+    // This check cannot be downgraded by LLM output
     if (conn.aws_arn?.includes(target.userName)) {
-      await logAction(userId, conn.id, f.id, "block", target.accessKeyId, "skipped",
-        "Refused to disable Strata's own access key");
+      await logAction(
+        userId,
+        conn.id,
+        f.id,
+        "approval_skip",
+        target.accessKeyId,
+        "skipped",
+        "SECURITY: Refused to create approval for STRATA's own access key",
+      );
       continue;
     }
-    const ok = await deactivateAccessKey(conn, target.userName, target.accessKeyId);
-    await logAction(userId, conn.id, f.id, "block", `${target.userName}:${target.accessKeyId}`,
-      ok ? "success" : "failed",
-      ok ? `Deactivated compromised access key for IAM user ${target.userName}` : `Failed to disable access key — verify iam:UpdateAccessKey permission`);
-    if (ok) blocked++;
+    
+    // Check if approval already exists
+    const { data: existing } = await supabaseAdmin
+      .from("pending_approvals")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("target", `${target.userName}:${target.accessKeyId}`)
+      .eq("status", "pending")
+      .maybeSingle();
+    
+    if (existing) continue; // Already has pending approval
+    
+    // Create approval request
+    const { error } = await supabaseAdmin.from("pending_approvals").insert({
+      user_id: userId,
+      action_type: "disable_access_key",
+      target: `${target.userName}:${target.accessKeyId}`,
+      reasoning: `Critical finding: ${f.title}. AI analysis: ${f.ai_summary}. Recommendation: ${f.ai_remediation}`,
+      finding_id: f.id,
+      status: "pending",
+      expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour expiry
+    });
+    
+    if (!error) {
+      created++;
+      await logAction(
+        userId,
+        conn.id,
+        f.id,
+        "approval_request",
+        `${target.userName}:${target.accessKeyId}`,
+        "success",
+        "Created approval request for containment action - requires human approval to proceed",
+      );
+      
+      // SECURITY: Audit log
+      await writeAuditLog({
+        user_id: userId,
+        action: AUDIT_ACTIONS.CONTAINMENT_APPROVAL_REQUEST,
+        resource_type: "iam_access_key",
+        resource_id: target.accessKeyId,
+        details: {
+          user_name: target.userName,
+          finding_title: f.title,
+          ai_severity: f.ai_severity,
+        },
+        status: 'success',
+      });
+    }
   }
-  return blocked;
+  return created;
 }
 
 function extractCompromisedKey(f: any): { userName: string; accessKeyId: string } | null {
   const raw = f.raw ?? {};
-  const userName = f.username ?? raw?.userIdentity?.userName ?? raw?.Resource?.AccessKeyDetails?.UserName;
-  const accessKeyId = raw?.userIdentity?.accessKeyId ?? raw?.Resource?.AccessKeyDetails?.AccessKeyId;
+  const userName =
+    f.username ?? raw?.userIdentity?.userName ?? raw?.Resource?.AccessKeyDetails?.UserName;
+  const accessKeyId =
+    raw?.userIdentity?.accessKeyId ?? raw?.Resource?.AccessKeyDetails?.AccessKeyId;
   if (!userName || !accessKeyId) return null;
   return { userName, accessKeyId };
 }
 
-async function deactivateAccessKey(conn: any, userName: string, accessKeyId: string): Promise<boolean> {
+async function deactivateAccessKey(
+  conn: any,
+  userName: string,
+  accessKeyId: string,
+): Promise<boolean> {
   const body = `Action=UpdateAccessKey&UserName=${encodeURIComponent(userName)}&AccessKeyId=${encodeURIComponent(accessKeyId)}&Status=Inactive&Version=2010-05-08`;
   try {
     const signed = await signAwsRequest({
-      method: "POST", service: "iam", region: "us-east-1", host: "iam.amazonaws.com",
+      method: "POST",
+      service: "iam",
+      region: "us-east-1",
+      host: "iam.amazonaws.com",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body,
-      accessKeyId: conn.access_key_id, secretAccessKey: conn.secret_access_key,
+      accessKeyId: conn.access_key_id,
+      secretAccessKey: conn.secret_access_key,
     });
     const res = await fetch(signed.url, { method: "POST", headers: signed.headers, body });
     return res.ok;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 // ---------- Incident report generation ----------
@@ -315,7 +596,9 @@ async function generateIncidentReport(userId: string, connectionId: string): Pro
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { data: findings } = await supabaseAdmin
     .from("findings")
-    .select("id,title,event_name,event_time,username,source_ip,ai_severity,ai_category,ai_summary,source,region")
+    .select(
+      "id,title,event_name,event_time,username,source_ip,ai_severity,ai_category,ai_summary,source,region",
+    )
     .eq("user_id", userId)
     .in("ai_severity", ["high", "critical"])
     .gte("created_at", since)
@@ -349,7 +632,14 @@ async function generateIncidentReport(userId: string, connectionId: string): Pro
 Findings:
 ${JSON.stringify(findings, null, 2).slice(0, 9000)}`;
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  // SECURITY: Validate AI gateway URL
+  const aiGatewayUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
+  if (!validateExternalUrl(aiGatewayUrl, ["ai.gateway.lovable.dev"])) {
+    console.error("Invalid AI gateway URL");
+    return false;
+  }
+
+  const res = await fetch(aiGatewayUrl, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -363,9 +653,15 @@ ${JSON.stringify(findings, null, 2).slice(0, 9000)}`;
   });
   if (!res.ok) return false;
   const j: any = await res.json();
-  const content = (j?.choices?.[0]?.message?.content ?? "").replace(/^```json\s*|\s*```$/g, "").trim();
+  const content = (j?.choices?.[0]?.message?.content ?? "")
+    .replace(/^```json\s*|\s*```$/g, "")
+    .trim();
   let parsed: any;
-  try { parsed = JSON.parse(content); } catch { return false; }
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return false;
+  }
 
   await supabaseAdmin.from("incident_reports").insert({
     user_id: userId,
@@ -380,7 +676,14 @@ ${JSON.stringify(findings, null, 2).slice(0, 9000)}`;
     related_finding_ids: findings.map((f) => f.id),
   });
 
-  await logAction(userId, connectionId, null, "report", parsed.title ?? null, "success",
-    "Generated AI incident report correlating recent high-severity findings");
+  await logAction(
+    userId,
+    connectionId,
+    null,
+    "report",
+    parsed.title ?? null,
+    "success",
+    "Generated AI incident report correlating recent high-severity findings",
+  );
   return true;
 }

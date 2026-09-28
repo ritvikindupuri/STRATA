@@ -17,8 +17,15 @@ function NotFoundComponent() {
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-display font-bold text-gradient">404</h1>
         <h2 className="mt-4 text-xl font-semibold">Signal lost</h2>
-        <p className="mt-2 text-sm text-muted-foreground">This route isn't on Strata's watchlist.</p>
-        <Link to="/" className="mt-6 inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">Return home</Link>
+        <p className="mt-2 text-sm text-muted-foreground">
+          This route isn't on Strata's watchlist.
+        </p>
+        <Link
+          to="/"
+          className="mt-6 inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+        >
+          Return home
+        </Link>
       </div>
     </div>
   );
@@ -32,7 +39,15 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold">An anomaly was detected</h1>
         <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
-        <button onClick={() => { router.invalidate(); reset(); }} className="mt-6 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">Retry</button>
+        <button
+          onClick={() => {
+            router.invalidate();
+            reset();
+          }}
+          className="mt-6 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+        >
+          Retry
+        </button>
       </div>
     </div>
   );
@@ -44,16 +59,36 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "STRATA — AI Cloud Intrusion Detection for AWS" },
-      { name: "description", content: "Strata is an AI-powered cloud intrusion detection system for AWS. CloudTrail and GuardDuty signals triaged across five layers — identity, API, network, data, control — in seconds." },
+      {
+        name: "description",
+        content:
+          "Strata is an AI-powered cloud intrusion detection system for AWS. CloudTrail and GuardDuty signals triaged across five layers — identity, API, network, data, control — in seconds.",
+      },
       { name: "author", content: "Strata" },
       { property: "og:title", content: "STRATA — AI Cloud Intrusion Detection for AWS" },
-      { property: "og:description", content: "Strata is an AI-powered cloud intrusion detection system for AWS. CloudTrail and GuardDuty signals triaged across five layers — identity, API, network, data, control — in seconds." },
+      {
+        property: "og:description",
+        content:
+          "Strata is an AI-powered cloud intrusion detection system for AWS. CloudTrail and GuardDuty signals triaged across five layers — identity, API, network, data, control — in seconds.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "STRATA — AI Cloud Intrusion Detection for AWS" },
-      { name: "twitter:description", content: "Strata is an AI-powered cloud intrusion detection system for AWS. CloudTrail and GuardDuty signals triaged across five layers — identity, API, network, data, control — in seconds." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/562b0d22-e21e-4159-9e09-1e5be05f405f/id-preview-391fde4d--49b0876b-61a4-4037-8ba2-183c4faa90ed.lovable.app-1779888785157.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/562b0d22-e21e-4159-9e09-1e5be05f405f/id-preview-391fde4d--49b0876b-61a4-4037-8ba2-183c4faa90ed.lovable.app-1779888785157.png" },
+      {
+        name: "twitter:description",
+        content:
+          "Strata is an AI-powered cloud intrusion detection system for AWS. CloudTrail and GuardDuty signals triaged across five layers — identity, API, network, data, control — in seconds.",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/562b0d22-e21e-4159-9e09-1e5be05f405f/id-preview-391fde4d--49b0876b-61a4-4037-8ba2-183c4faa90ed.lovable.app-1779888785157.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/562b0d22-e21e-4159-9e09-1e5be05f405f/id-preview-391fde4d--49b0876b-61a4-4037-8ba2-183c4faa90ed.lovable.app-1779888785157.png",
+      },
     ],
     links: [{ rel: "stylesheet", href: appCss }],
   }),
@@ -66,7 +101,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark">
-      <head><HeadContent /></head>
+      <head>
+        <HeadContent />
+      </head>
       <body>
         {children}
         <Scripts />
