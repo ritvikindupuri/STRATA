@@ -8,17 +8,32 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { signAwsRequest } from "@/lib/aws/sigv4";
 import { decryptSecret } from "@/lib/aws/crypto";
 import { syncFindings } from "@/lib/aws.functions";
-import { validateExternalUrl, RateLimiter } from "@/lib/security";
-
-// SECURITY: Rate limit AI API calls to prevent abuse
-const aiRateLimiter = new RateLimiter(20, 60000); // 20 calls per minute per user
+import { validateExternalUrl } from "@/lib/security";
+import { checkRateLimitByUser, RATE_LIMITS, createRateLimitResponse } from "@/lib/rate-limit";
+import { writeAuditLog, AUDIT_ACTIONS, getRequestMetadata } from "@/lib/audit";
+import { getAuthorizedAwsConnection, verifyActionOwnership, createUnauthorizedResponse } from "@/lib/authorization";
+import { createSafeErrorResponse } from "@/lib/redaction";
 
 // ---------- Public entry: run the full autonomous cycle ----------
 export const runAutopilot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const userId = context.userId;
-    const conn = await loadConnection(userId);
+    
+    // SECURITY: Rate limit autopilot runs (expensive operation)
+    const rateLimit = checkRateLimitByUser(userId, RATE_LIMITS.AUTOPILOT);
+    if (!rateLimit.allowed) {
+      return { ok: false as const, error: "Rate limit exceeded" };
+    }
+    
+    // SECURITY: Audit log start
+    await writeAuditLog({
+      user_id: userId,
+      action: AUDIT_ACTIONS.AGENT_RUN_START,
+      status: 'success',
+    });
+    
+    const conn = await getAuthorizedAwsConnection(userId);
     if (!conn) return { ok: false as const, error: "No AWS connection configured" };
 
     const { data: run } = await supabaseAdmin
@@ -28,7 +43,7 @@ export const runAutopilot = createServerFn({ method: "POST" })
       .single();
     const runId = run?.id;
     const errors: string[] = [];
-    const stats = { rules_created: 0, events_synced: 0, blocked: 0, reports: 0 };
+    const stats = { rules_created: 0, events_synced: 0, approvals_created: 0, reports: 0 };
 
     // 1. RULE GENERATION — ensure tailored detection rules exist
     try {
@@ -64,10 +79,10 @@ export const runAutopilot = createServerFn({ method: "POST" })
       errors.push(`sync: ${e.message}`);
     }
 
-    // 3. CONTAINMENT — auto-respond to critical IAM-key findings
+    // 3. CONTAINMENT — create approval requests (SECURITY: human-in-the-loop for AWS writes)
     if (conn.auto_response_enabled) {
       try {
-        stats.blocked = await autoContain(userId, conn);
+        stats.approvals_created = await createContainmentApprovals(userId, conn);
       } catch (e: any) {
         errors.push(`contain: ${e.message}`);
       }
@@ -92,6 +107,14 @@ export const runAutopilot = createServerFn({ method: "POST" })
         })
         .eq("id", runId);
     }
+    
+    // SECURITY: Audit log completion
+    await writeAuditLog({
+      user_id: userId,
+      action: AUDIT_ACTIONS.AGENT_RUN_COMPLETE,
+      details: { stats },
+      status: errors.length === 0 ? 'success' : 'failure',
+    });
 
     return { ok: true as const, ...stats, errors };
   });
@@ -120,6 +143,113 @@ export const regenerateRules = createServerFn({ method: "POST" })
     await supabaseAdmin.from("detection_rules").delete().eq("user_id", context.userId);
     const created = await generateRules(context.userId, conn.id);
     return { ok: true as const, created };
+  });
+
+// ---------- SECURITY: Approve or reject a pending containment action ----------
+export const handleApproval = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => {
+    const i = input as { approval_id?: string; action?: "approve" | "reject" };
+    if (!i.approval_id || !i.action) throw new Error("approval_id and action required");
+    return { approval_id: String(i.approval_id), action: i.action };
+  })
+  .handler(async ({ data, context }) => {
+    const userId = context.userId;
+    
+    // SECURITY: Verify ownership of the approval
+    const { data: approval } = await supabaseAdmin
+      .from("pending_approvals")
+      .select("*")
+      .eq("id", data.approval_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    
+    if (!approval) return createUnauthorizedResponse();
+    
+    if (approval.status !== "pending") {
+      return { ok: false as const, error: "Approval already processed" };
+    }
+    
+    // Check expiry
+    if (new Date(approval.expires_at) < new Date()) {
+      return { ok: false as const, error: "Approval has expired" };
+    }
+    
+    if (data.action === "reject") {
+      // Reject the approval
+      await supabaseAdmin.from("pending_approvals").update({
+        status: "rejected",
+        approved_at: new Date().toISOString(),
+        approved_by: userId,
+      }).eq("id", approval.id);
+      
+      await writeAuditLog({
+        user_id: userId,
+        action: AUDIT_ACTIONS.CONTAINMENT_APPROVAL_DENIED,
+        resource_type: "iam_access_key",
+        resource_id: approval.target,
+        details: { reasoning: approval.reasoning },
+        status: 'success',
+      });
+      
+      return { ok: true as const, status: "rejected" };
+    }
+    
+    // Approve and execute the containment action
+    const conn = await getAuthorizedAwsConnection(userId);
+    if (!conn) return { ok: false as const, error: "No AWS connection" };
+    
+    const [userName, accessKeyId] = approval.target.split(":");
+    if (!userName || !accessKeyId) {
+      return { ok: false as const, error: "Invalid target format" };
+    }
+    
+    // SECURITY: Final deterministic check - never disable STRATA's own key
+    if (conn.aws_arn?.includes(userName)) {
+      await writeAuditLog({
+        user_id: userId,
+        action: AUDIT_ACTIONS.CONTAINMENT_APPROVAL_DENIED,
+        resource_type: "iam_access_key",
+        resource_id: accessKeyId,
+        details: { reason: "Attempted to disable STRATA's own credentials" },
+        status: 'blocked',
+      });
+      return { ok: false as const, error: "Cannot disable STRATA's own credentials" };
+    }
+    
+    const success = await deactivateAccessKey(conn, userName, accessKeyId);
+    
+    await supabaseAdmin.from("pending_approvals").update({
+      status: success ? "approved" : "rejected",
+      approved_at: new Date().toISOString(),
+      approved_by: userId,
+    }).eq("id", approval.id);
+    
+    await writeAuditLog({
+      user_id: userId,
+      action: success ? AUDIT_ACTIONS.CONTAINMENT_APPROVAL_GRANTED : AUDIT_ACTIONS.CONTAINMENT_APPROVAL_DENIED,
+      resource_type: "iam_access_key",
+      resource_id: accessKeyId,
+      details: {
+        user_name: userName,
+        reasoning: approval.reasoning,
+        execution_success: success,
+      },
+      status: success ? 'success' : 'failure',
+    });
+    
+    if (success) {
+      await writeAuditLog({
+        user_id: userId,
+        action: AUDIT_ACTIONS.CONTAINMENT_KEY_DISABLE,
+        resource_type: "iam_access_key",
+        resource_id: accessKeyId,
+        details: { user_name: userName },
+        status: 'success',
+      });
+    }
+    
+    return { ok: true as const, status: success ? "executed" : "failed" };
   });
 
 // ---------- Clear current session (wipes findings/runs/actions/reports/rules) ----------
@@ -341,8 +471,9 @@ Generate 8-10 high-signal detection rules covering: credential exfiltration, pri
   return rows.length;
 }
 
-// ---------- Auto-containment: deactivate compromised access keys ----------
-async function autoContain(userId: string, conn: any): Promise<number> {
+// ---------- SECURITY: Create approval requests for containment (human-in-the-loop) ----------
+// LLM analysis cannot directly trigger AWS writes; requires explicit human approval
+async function createContainmentApprovals(userId: string, conn: any): Promise<number> {
   // Look at critical findings from the last hour that name an IAM user + access key
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { data: critical } = await supabaseAdmin
@@ -352,38 +483,76 @@ async function autoContain(userId: string, conn: any): Promise<number> {
     .eq("ai_severity", "critical")
     .gte("created_at", since);
 
-  let blocked = 0;
+  let created = 0;
   for (const f of critical ?? []) {
     const target = extractCompromisedKey(f);
     if (!target) continue;
-    // Avoid blocking the IAM user Strata itself uses
+    
+    // SECURITY: Deterministic check - never block STRATA's own credentials
+    // This check cannot be downgraded by LLM output
     if (conn.aws_arn?.includes(target.userName)) {
       await logAction(
         userId,
         conn.id,
         f.id,
-        "block",
+        "approval_skip",
         target.accessKeyId,
         "skipped",
-        "Refused to disable Strata's own access key",
+        "SECURITY: Refused to create approval for STRATA's own access key",
       );
       continue;
     }
-    const ok = await deactivateAccessKey(conn, target.userName, target.accessKeyId);
-    await logAction(
-      userId,
-      conn.id,
-      f.id,
-      "block",
-      `${target.userName}:${target.accessKeyId}`,
-      ok ? "success" : "failed",
-      ok
-        ? `Deactivated compromised access key for IAM user ${target.userName}`
-        : `Failed to disable access key — verify iam:UpdateAccessKey permission`,
-    );
-    if (ok) blocked++;
+    
+    // Check if approval already exists
+    const { data: existing } = await supabaseAdmin
+      .from("pending_approvals")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("target", `${target.userName}:${target.accessKeyId}`)
+      .eq("status", "pending")
+      .maybeSingle();
+    
+    if (existing) continue; // Already has pending approval
+    
+    // Create approval request
+    const { error } = await supabaseAdmin.from("pending_approvals").insert({
+      user_id: userId,
+      action_type: "disable_access_key",
+      target: `${target.userName}:${target.accessKeyId}`,
+      reasoning: `Critical finding: ${f.title}. AI analysis: ${f.ai_summary}. Recommendation: ${f.ai_remediation}`,
+      finding_id: f.id,
+      status: "pending",
+      expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour expiry
+    });
+    
+    if (!error) {
+      created++;
+      await logAction(
+        userId,
+        conn.id,
+        f.id,
+        "approval_request",
+        `${target.userName}:${target.accessKeyId}`,
+        "success",
+        "Created approval request for containment action - requires human approval to proceed",
+      );
+      
+      // SECURITY: Audit log
+      await writeAuditLog({
+        user_id: userId,
+        action: AUDIT_ACTIONS.CONTAINMENT_APPROVAL_REQUEST,
+        resource_type: "iam_access_key",
+        resource_id: target.accessKeyId,
+        details: {
+          user_name: target.userName,
+          finding_title: f.title,
+          ai_severity: f.ai_severity,
+        },
+        status: 'success',
+      });
+    }
   }
-  return blocked;
+  return created;
 }
 
 function extractCompromisedKey(f: any): { userName: string; accessKeyId: string } | null {

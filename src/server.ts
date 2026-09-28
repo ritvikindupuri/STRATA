@@ -2,6 +2,8 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { addSecurityHeaders } from "./lib/security-headers";
+import { handleCorsPreflightFailClosed, addCorsHeaders } from "./lib/cors";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -69,9 +71,23 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      // SECURITY: Handle CORS preflight with fail-closed policy
+      if (request.method === 'OPTIONS') {
+        return handleCorsPreflightFailClosed(request);
+      }
+      
       const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      let response = await handler.fetch(request, env, ctx);
+      response = await normalizeCatastrophicSsrResponse(response);
+      
+      // SECURITY: Add CORS headers with fail-closed policy
+      const origin = request.headers.get('Origin');
+      response = addCorsHeaders(response, origin);
+      
+      // SECURITY: Add comprehensive security headers (CSP, HSTS, etc.)
+      response = addSecurityHeaders(response);
+      
+      return response;
     } catch (error) {
       console.error(error);
       return brandedErrorResponse();
