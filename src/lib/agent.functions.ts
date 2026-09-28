@@ -8,6 +8,10 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { signAwsRequest } from "@/lib/aws/sigv4";
 import { decryptSecret } from "@/lib/aws/crypto";
 import { syncFindings } from "@/lib/aws.functions";
+import { validateExternalUrl, RateLimiter } from "@/lib/security";
+
+// SECURITY: Rate limit AI API calls to prevent abuse
+const aiRateLimiter = new RateLimiter(20, 60000); // 20 calls per minute per user
 
 // ---------- Public entry: run the full autonomous cycle ----------
 export const runAutopilot = createServerFn({ method: "POST" })
@@ -161,7 +165,14 @@ Initial reasoning: ${action.reasoning}
 
 Triggering finding:
 ${JSON.stringify(finding ?? {}, null, 2).slice(0, 4000)}`;
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+
+    // SECURITY: Validate AI gateway URL
+    const aiGatewayUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
+    if (!validateExternalUrl(aiGatewayUrl, ["ai.gateway.lovable.dev"])) {
+      return { ok: false as const, error: "Invalid AI gateway URL" };
+    }
+
+    const res = await fetch(aiGatewayUrl, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -221,7 +232,14 @@ async function generateRules(userId: string, connectionId: string): Promise<numb
 Output STRICT JSON: { "rules": [ { "name": string, "description": string, "mitre_technique": string, "severity": "low|medium|high|critical", "match_event_names": string[], "match_keywords": string[] } ] }
 Generate 8-10 high-signal detection rules covering: credential exfiltration, privilege escalation, log tampering, persistence, defense evasion, suspicious console logins, security group exposure, S3/KMS data access.`;
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  // SECURITY: Validate AI gateway URL
+  const aiGatewayUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
+  if (!validateExternalUrl(aiGatewayUrl, ["ai.gateway.lovable.dev"])) {
+    console.error("Invalid AI gateway URL");
+    return 0;
+  }
+
+  const res = await fetch(aiGatewayUrl, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -349,7 +367,14 @@ async function generateIncidentReport(userId: string, connectionId: string): Pro
 Findings:
 ${JSON.stringify(findings, null, 2).slice(0, 9000)}`;
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  // SECURITY: Validate AI gateway URL
+  const aiGatewayUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
+  if (!validateExternalUrl(aiGatewayUrl, ["ai.gateway.lovable.dev"])) {
+    console.error("Invalid AI gateway URL");
+    return false;
+  }
+
+  const res = await fetch(aiGatewayUrl, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({

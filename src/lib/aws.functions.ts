@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { signAwsRequest } from "@/lib/aws/sigv4";
 import { encryptSecret, decryptSecret } from "@/lib/aws/crypto";
+import { validateAwsHostname, validateExternalUrl } from "@/lib/security";
 
 const REGIONS = [
   "us-east-1", "us-east-2", "us-west-1", "us-west-2",
@@ -27,11 +28,18 @@ export const saveAwsConnection = createServerFn({ method: "POST" })
 
     // STS GetCallerIdentity — real AWS call to validate credentials
     const body = "Action=GetCallerIdentity&Version=2011-06-15";
+    const stsHost = "sts.amazonaws.com";
+    
+    // SECURITY: Validate AWS hostname to prevent SSRF
+    if (!validateAwsHostname(stsHost)) {
+      return { ok: false as const, error: "Invalid AWS hostname" };
+    }
+    
     const signed = await signAwsRequest({
       method: "POST",
       service: "sts",
       region: data.region,
-      host: "sts.amazonaws.com",
+      host: stsHost,
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body,
       accessKeyId: data.accessKeyId,
