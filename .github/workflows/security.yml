@@ -69,7 +69,7 @@ jobs:
           persist-credentials: false
 
       - name: TruffleHog OSS
-        uses: trufflesecurity/trufflehog@5266524c5f82b637c84a6b13bf84eb6cd3c4b3bf # v3.84.2
+        uses: trufflesecurity/trufflehog@35943b41905eb1195f021955da17c233ed555e24 # v3.84.2
         with:
           path: ./
           base: ${{ github.event.repository.default_branch }}
@@ -90,6 +90,6 @@ jobs:
           persist-credentials: false
 
       - name: Gitleaks
-        uses: gitleaks/gitleaks-action@1f2d10fb689667018f7c8f454b8f133e1b898e17 # v2.3.7
+        uses: gitleaks/gitleaks-action@83373cf2f8c4db6e24b41c1a9b086bb9619e9cd3 # v2.3.7
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
