@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow, format } from "date-fns";
 import { Archive } from "lucide-react";
+import type { Json, Tables } from "@/integrations/supabase/types";
+import { asRecord } from "@/lib/type-utils";
 
 export const Route = createFileRoute("/app/history")({ component: HistoryPage });
 
@@ -11,7 +13,7 @@ function HistoryPage() {
     queryKey: ["agent-sessions"],
     queryFn: async () =>
       (
-        await (supabase as any)
+        await supabase
           .from("agent_sessions")
           .select("*")
           .order("created_at", { ascending: false })
@@ -22,7 +24,7 @@ function HistoryPage() {
     queryKey: ["agent-runs"],
     queryFn: async () =>
       (
-        await (supabase as any)
+        await supabase
           .from("agent_runs")
           .select("*")
           .order("started_at", { ascending: false })
@@ -44,7 +46,7 @@ function HistoryPage() {
           <Archive className="h-4 w-4 text-primary" /> Archived sessions
         </h2>
         <div className="mt-4 space-y-3">
-          {(sessions.data ?? []).map((s: any) => (
+          {(sessions.data ?? []).map((s: Tables<"agent_sessions">) => (
             <div
               key={s.id}
               className="rounded-xl border border-border bg-card/40 p-4 card-elevated"
@@ -64,7 +66,7 @@ function HistoryPage() {
               </div>
               {s.stats_rollup && Object.keys(s.stats_rollup).length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {Object.entries(s.stats_rollup).map(([k, v]: any) => (
+                  {Object.entries(asRecord(s.stats_rollup)).map(([k, v]) => (
                     <span
                       key={k}
                       className="rounded border border-border bg-background/40 px-2 py-0.5 font-mono text-[10px] text-muted-foreground"
@@ -88,7 +90,7 @@ function HistoryPage() {
       <section className="mt-12">
         <h2 className="font-display text-lg font-semibold">Recent autopilot cycles</h2>
         <div className="mt-4 space-y-2">
-          {(runs.data ?? []).map((r: any) => (
+          {(runs.data ?? []).map((r: Tables<"agent_runs">) => (
             <div
               key={r.id}
               className="rounded-lg border border-border bg-card/40 p-3 flex flex-wrap items-center justify-between gap-3"
@@ -100,7 +102,7 @@ function HistoryPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {Object.entries(r.stats ?? {}).map(([k, v]: any) => (
+                {Object.entries(asRecord(r.stats)).map(([k, v]) => (
                   <span
                     key={k}
                     className="rounded border border-border bg-background/40 px-2 py-0.5 font-mono text-[10px] text-muted-foreground"
@@ -122,7 +124,7 @@ function HistoryPage() {
   );
 }
 
-function Cell({ k, v }: { k: string; v: any }) {
+function Cell({ k, v }: { k: string; v: string | number | null }) {
   return (
     <div className="rounded-md border border-border bg-background/40 p-2">
       <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{k}</div>

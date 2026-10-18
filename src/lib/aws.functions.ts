@@ -5,6 +5,14 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { signAwsRequest } from "@/lib/aws/sigv4";
 import { encryptSecret, decryptSecret } from "@/lib/aws/crypto";
 import { validateAwsHostname, validateExternalUrl } from "@/lib/security";
+import type { Json, Tables } from "@/integrations/supabase/types";
+import {
+  asRecord,
+  chatMessageContent,
+  getErrorMessage,
+  nestedString,
+  readJson,
+} from "@/lib/type-utils";
 
 const REGIONS = [
   "us-east-1",
@@ -175,25 +183,32 @@ export const syncFindings = createServerFn({ method: "POST" })
         headers: ctSigned.headers,
         body: ctBody,
       });
-      const ctJson: any = await ctRes.json().catch(() => ({}));
-      if (!ctRes.ok) results.errors.push(`CloudTrail: ${ctJson?.Message || ctRes.status}`);
+      const ctJson = asRecord(await readJson(ctRes));
+      if (!ctRes.ok) results.errors.push(`CloudTrail: ${String(ctJson.Message ?? ctRes.status)}`);
       else {
-        for (const ev of ctJson.Events ?? []) {
-          const parsed = safeJson(ev.CloudTrailEvent);
+        const events = Array.isArray(ctJson.Events) ? ctJson.Events : [];
+        for (const event of events) {
+          const ev = asRecord(event);
+          const parsed = asRecord(safeJson(ev.CloudTrailEvent));
+          const eventName = typeof ev.EventName === "string" ? ev.EventName : "UnknownEvent";
+          const eventTime = typeof ev.EventTime === "number" ? ev.EventTime : 0;
           const row = {
             user_id: context.userId,
             connection_id: conn.id,
             source: "cloudtrail",
-            external_id: ev.EventId,
-            event_name: ev.EventName,
-            event_time: new Date((ev.EventTime ?? 0) * 1000).toISOString(),
-            region: parsed?.awsRegion ?? conn.region,
-            username: ev.Username ?? parsed?.userIdentity?.userName ?? null,
-            source_ip: parsed?.sourceIPAddress ?? null,
-            user_agent: parsed?.userAgent ?? null,
+            external_id: String(ev.EventId ?? ""),
+            event_name: eventName,
+            event_time: new Date(eventTime * 1000).toISOString(),
+            region: nestedString(parsed, ["awsRegion"]) ?? conn.region,
+            username:
+              (typeof ev.Username === "string" ? ev.Username : null) ??
+              nestedString(parsed, ["userIdentity", "userName"]) ??
+              null,
+            source_ip: nestedString(parsed, ["sourceIPAddress"]) ?? null,
+            user_agent: nestedString(parsed, ["userAgent"]) ?? null,
             severity: null,
-            title: ev.EventName,
-            raw: parsed ?? ev,
+            title: eventName,
+            raw: (Object.keys(parsed).length ? parsed : ev) as Json,
           };
           const { data: inserted } = await supabaseAdmin
             .from("findings")
@@ -205,15 +220,15 @@ export const syncFindings = createServerFn({ method: "POST" })
             .single();
           if (inserted) {
             results.cloudtrail++;
-            if (!inserted.ai_analyzed_at && shouldAnalyzeCloudTrail(ev.EventName)) {
+            if (!inserted.ai_analyzed_at && shouldAnalyzeCloudTrail(eventName)) {
               await analyzeAndStore(inserted.id, inserted);
               results.analyzed++;
             }
           }
         }
       }
-    } catch (e: any) {
-      results.errors.push(`CloudTrail: ${e.message}`);
+    } catch (e: unknown) {
+      results.errors.push(`CloudTrail: ${getErrorMessage(e)}`);
     }
 
     // ---- GuardDuty: list detectors then list findings (best-effort; skip if not enabled) ----
@@ -228,7 +243,7 @@ export const syncFindings = createServerFn({ method: "POST" })
         secretAccessKey: conn.secret_access_key,
       });
       const detRes = await fetch(detSigned.url, { headers: detSigned.headers });
-      const detJson: any = await detRes.json().catch(() => ({}));
+      const detJson = asRecord(await readJson(detRes));
       if (detRes.ok && Array.isArray(detJson.DetectorIds)) {
         for (const detectorId of detJson.DetectorIds) {
           const listSigned = await signAwsRequest({
@@ -247,8 +262,10 @@ export const syncFindings = createServerFn({ method: "POST" })
             headers: listSigned.headers,
             body: JSON.stringify({ MaxResults: 50 }),
           });
-          const listJson: any = await listRes.json().catch(() => ({}));
-          const ids: string[] = listJson.FindingIds ?? [];
+          const listJson = asRecord(await readJson(listRes));
+          const ids: string[] = Array.isArray(listJson.FindingIds)
+            ? listJson.FindingIds.map(String)
+            : [];
           if (!ids.length) continue;
           const getBody = JSON.stringify({ FindingIds: ids });
           const getSigned = await signAwsRequest({
@@ -267,23 +284,34 @@ export const syncFindings = createServerFn({ method: "POST" })
             headers: getSigned.headers,
             body: getBody,
           });
-          const getJson: any = await getRes.json().catch(() => ({}));
-          for (const f of getJson.Findings ?? []) {
+          const getJson = asRecord(await readJson(getRes));
+          const findings = Array.isArray(getJson.Findings) ? getJson.Findings : [];
+          for (const finding of findings) {
+            const f = asRecord(finding);
             const row = {
               user_id: context.userId,
               connection_id: conn.id,
               source: "guardduty",
-              external_id: f.Id,
-              event_name: f.Type,
-              event_time: f.UpdatedAt ?? f.CreatedAt ?? new Date().toISOString(),
-              region: f.Region ?? conn.region,
-              username: f.Resource?.AccessKeyDetails?.UserName ?? null,
+              external_id: String(f.Id ?? ""),
+              event_name: typeof f.Type === "string" ? f.Type : null,
+              event_time:
+                (typeof f.UpdatedAt === "string" ? f.UpdatedAt : null) ??
+                (typeof f.CreatedAt === "string" ? f.CreatedAt : null) ??
+                new Date().toISOString(),
+              region: (typeof f.Region === "string" ? f.Region : null) ?? conn.region,
+              username: nestedString(f, ["Resource", "AccessKeyDetails", "UserName"]) ?? null,
               source_ip:
-                f.Service?.Action?.NetworkConnectionAction?.RemoteIpDetails?.IpAddressV4 ?? null,
+                nestedString(f, [
+                  "Service",
+                  "Action",
+                  "NetworkConnectionAction",
+                  "RemoteIpDetails",
+                  "IpAddressV4",
+                ]) ?? null,
               user_agent: null,
-              severity: f.Severity,
-              title: f.Title,
-              raw: f,
+              severity: typeof f.Severity === "number" ? f.Severity : null,
+              title: typeof f.Title === "string" ? f.Title : null,
+              raw: f as Json,
             };
             const { data: inserted } = await supabaseAdmin
               .from("findings")
@@ -300,8 +328,8 @@ export const syncFindings = createServerFn({ method: "POST" })
           }
         }
       }
-    } catch (e: any) {
-      results.errors.push(`GuardDuty: ${e.message}`);
+    } catch (e: unknown) {
+      results.errors.push(`GuardDuty: ${getErrorMessage(e)}`);
     }
 
     return { ok: true as const, ...results };
@@ -325,7 +353,7 @@ async function loadConnection(userId: string) {
   return data;
 }
 
-function safeJson(s: any) {
+function safeJson(s: unknown): unknown {
   if (!s) return null;
   if (typeof s !== "string") return s;
   try {
@@ -379,7 +407,10 @@ function shouldAnalyzeCloudTrail(eventName: string): boolean {
   return watch.some((w) => eventName?.includes(w));
 }
 
-async function analyzeAndStore(findingId: string, row: any) {
+async function analyzeAndStore(
+  findingId: string,
+  row: { raw?: Json; event_name?: string | null; title?: string | null },
+) {
   const apiKey = process.env.LOVABLE_API_KEY;
   if (!apiKey) return;
 
@@ -419,8 +450,8 @@ ${JSON.stringify(row.raw ?? row, null, 2).slice(0, 6000)}`;
       }),
     });
     if (!res.ok) return;
-    const j: any = await res.json();
-    const content = j?.choices?.[0]?.message?.content ?? "";
+    const j = await readJson(res);
+    const content = chatMessageContent(j);
     const clean = content.replace(/^```json\s*|\s*```$/g, "").trim();
     const parsed = JSON.parse(clean);
     await supabaseAdmin

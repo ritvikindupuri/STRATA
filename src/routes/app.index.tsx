@@ -7,6 +7,8 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, Activity, ShieldCheck, Cloud, ArrowRight, Bot, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import type { LucideIcon } from "lucide-react";
+import type { Tables } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/app/")({ component: Dashboard });
 
@@ -19,7 +21,7 @@ function Dashboard() {
   const conn = useQuery({
     queryKey: ["aws-conn"],
     queryFn: async () => {
-      const { data } = await (supabase as any).rpc("my_aws_connection");
+      const { data } = await supabase.rpc("my_aws_connection");
       return (Array.isArray(data) && data.length ? data[0] : null) as null | {
         id: string;
         status: string;
@@ -60,11 +62,11 @@ function Dashboard() {
         ? null
         : toast.loading("Agents running — rules · sync · triage · contain · report");
       try {
-        const r: any = await autopilot();
+        const r = await autopilot();
         if (t) toast.dismiss(t);
         if (r?.ok && !silent) {
           toast.success(
-            `Agents complete · ${r.rules_created} rules · ${r.events_synced} events · ${r.blocked} blocked · ${r.reports} reports`,
+            `Agents complete · ${r.rules_created} rules · ${r.events_synced} events · ${r.approvals_created} approvals · ${r.reports} reports`,
           );
         }
         findings.refetch();
@@ -106,13 +108,15 @@ function Dashboard() {
                 setClearing(true);
                 const t = toast.loading("Clearing session…");
                 try {
-                  const r: any = await doClear();
+                  const r = await doClear();
                   toast.dismiss(t);
                   if (r?.ok) {
                     toast.success("Session cleared");
                     ranRef.current = false;
                     findings.refetch();
-                  } else toast.error(r?.error ?? "Failed to clear");
+                  } else {
+                    toast.error("Failed to clear");
+                  }
                 } finally {
                   setClearing(false);
                 }
@@ -178,7 +182,7 @@ function Dashboard() {
               </Link>
             </div>
             <div className="mt-4 space-y-3">
-              {(findings.data ?? []).slice(0, 8).map((f: any) => (
+              {(findings.data ?? []).slice(0, 8).map((f) => (
                 <FindingRow key={f.id} f={f} />
               ))}
               {(findings.data ?? []).length === 0 && (
@@ -195,7 +199,7 @@ function Dashboard() {
   );
 }
 
-function computeStats(rows: any[]) {
+function computeStats(rows: Tables<"findings">[]) {
   let critical = 0,
     high = 0,
     analyzed = 0;
@@ -215,7 +219,7 @@ function StatCard({
 }: {
   label: string;
   value: number;
-  icon: any;
+  icon: LucideIcon;
   tone?: "critical" | "warning" | "success";
 }) {
   const toneColor =
@@ -239,7 +243,7 @@ function StatCard({
   );
 }
 
-export function FindingRow({ f }: { f: any }) {
+export function FindingRow({ f }: { f: Tables<"findings"> }) {
   const sev = (f.ai_severity ?? "low") as string;
   const color =
     sev === "critical"

@@ -7,6 +7,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { encryptSecret, decryptSecret } from "@/lib/aws/crypto";
+import type { Json } from "@/integrations/supabase/types";
+import { asRecord, getErrorMessage, nestedString, readJson } from "@/lib/type-utils";
 
 // ---------- Mock data seeding ----------
 export const seedMockData = createServerFn({ method: "POST" })
@@ -401,7 +403,7 @@ export const connectElasticsearch = createServerFn({ method: "POST" })
           error: `Elasticsearch returned ${res.status}: ${t.slice(0, 200)}`,
         };
       }
-      const health: any = await res.json().catch(() => ({}));
+      const health = asRecord(await readJson(res));
 
       // Upsert into the AWS connection row (one cluster per user for now)
       const { data: conn } = await supabaseAdmin
@@ -430,22 +432,22 @@ export const connectElasticsearch = createServerFn({ method: "POST" })
         action_type: "es_connect",
         target: endpoint,
         status: "success",
-        reasoning: `Connected Elasticsearch cluster (status: ${health.status ?? "unknown"}, nodes: ${health.number_of_nodes ?? "?"}).`,
+        reasoning: `Connected Elasticsearch cluster (status: ${String(health.status ?? "unknown")}, nodes: ${String(health.number_of_nodes ?? "?")}).`,
         details: {
-          cluster_name: health.cluster_name,
-          status: health.status,
-          nodes: health.number_of_nodes,
+          cluster_name: health.cluster_name == null ? null : String(health.cluster_name),
+          status: health.status == null ? null : String(health.status),
+          nodes: health.number_of_nodes == null ? null : String(health.number_of_nodes),
         },
       });
 
       return {
         ok: true as const,
-        cluster: health.cluster_name,
-        status: health.status,
-        nodes: health.number_of_nodes,
+        cluster: health.cluster_name == null ? undefined : String(health.cluster_name),
+        status: health.status == null ? undefined : String(health.status),
+        nodes: health.number_of_nodes == null ? undefined : String(health.number_of_nodes),
       };
-    } catch (e: any) {
-      return { ok: false as const, error: `Cannot reach cluster: ${e.message}` };
+    } catch (e: unknown) {
+      return { ok: false as const, error: `Cannot reach cluster: ${getErrorMessage(e)}` };
     }
   });
 
@@ -497,25 +499,39 @@ export const syncFromElasticsearch = createServerFn({ method: "POST" })
       const t = await res.text().catch(() => "");
       return { ok: false as const, error: `ES ${res.status}: ${t.slice(0, 200)}` };
     }
-    const j: any = await res.json();
-    const hits: any[] = j?.hits?.hits ?? [];
+    const j = asRecord(await readJson(res));
+    const hitsObj = asRecord(j.hits);
+    const hits = Array.isArray(hitsObj.hits) ? hitsObj.hits : [];
     let inserted = 0;
-    for (const h of hits) {
-      const src = h._source ?? {};
+    for (const hit of hits) {
+      const h = asRecord(hit);
+      const src = asRecord(h._source);
       const row = {
         user_id: context.userId,
         connection_id: conn.id,
         source: "elasticsearch",
-        external_id: h._id,
-        event_name: src.eventName ?? src.event?.action ?? "es_event",
-        event_time: src["@timestamp"] ?? src.eventTime ?? new Date().toISOString(),
-        region: src.awsRegion ?? conn.region,
-        username: src.userIdentity?.userName ?? src.user?.name ?? null,
-        source_ip: src.sourceIPAddress ?? src.source?.ip ?? null,
-        user_agent: src.userAgent ?? src.user_agent?.original ?? null,
+        external_id: String(h._id ?? ""),
+        event_name:
+          nestedString(src, ["eventName"]) ?? nestedString(src, ["event", "action"]) ?? "es_event",
+        event_time:
+          nestedString(src, ["@timestamp"]) ??
+          nestedString(src, ["eventTime"]) ??
+          new Date().toISOString(),
+        region: nestedString(src, ["awsRegion"]) ?? conn.region,
+        username:
+          nestedString(src, ["userIdentity", "userName"]) ??
+          nestedString(src, ["user", "name"]) ??
+          null,
+        source_ip:
+          nestedString(src, ["sourceIPAddress"]) ?? nestedString(src, ["source", "ip"]) ?? null,
+        user_agent:
+          nestedString(src, ["userAgent"]) ?? nestedString(src, ["user_agent", "original"]) ?? null,
         severity: null,
-        title: src.eventName ?? src.message?.slice(0, 80) ?? "Elasticsearch event",
-        raw: src,
+        title:
+          nestedString(src, ["eventName"]) ??
+          (typeof src.message === "string" ? src.message.slice(0, 80) : null) ??
+          "Elasticsearch event",
+        raw: src as Json,
       };
       const { error } = await supabaseAdmin
         .from("findings")
@@ -529,7 +545,15 @@ export const syncFromElasticsearch = createServerFn({ method: "POST" })
       target: conn.es_index,
       status: "success",
       reasoning: `Pulled ${inserted} events from Elasticsearch index ${conn.es_index}`,
-      details: { inserted, total_hits: j?.hits?.total?.value ?? hits.length },
+      details: {
+        inserted,
+        total_hits: nestedString(hitsObj, ["total", "value"]) ?? hits.length,
+      },
     });
-    return { ok: true as const, inserted, total: j?.hits?.total?.value ?? hits.length };
+    const totalRaw = asRecord(hitsObj.total).value;
+    return {
+      ok: true as const,
+      inserted,
+      total: typeof totalRaw === "number" ? totalRaw : hits.length,
+    };
   });

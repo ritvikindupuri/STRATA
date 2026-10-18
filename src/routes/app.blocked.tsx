@@ -7,6 +7,8 @@ import { formatDistanceToNow } from "date-fns";
 import { ShieldX, Sparkles, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import type { Tables } from "@/integrations/supabase/types";
+import { asRecord } from "@/lib/type-utils";
 
 export const Route = createFileRoute("/app/blocked")({ component: BlockedPage });
 
@@ -33,7 +35,7 @@ function BlockedPage() {
   async function runExplain(id: string) {
     setBusy(id);
     try {
-      const r: any = await explain({ data: { action_id: id } });
+      const r = await explain({ data: { action_id: id } });
       if (!r?.ok) toast.error(r?.error ?? "Failed to generate explanation");
       await qc.invalidateQueries({ queryKey: ["blocked-actions"] });
       setOpen(id);
@@ -54,8 +56,9 @@ function BlockedPage() {
       </p>
 
       <div className="mt-6 space-y-3">
-        {(actions.data ?? []).map((a: any) => {
-          const expl = (a.details as any)?.ai_explanation as string | undefined;
+        {(actions.data ?? []).map((a: Tables<"agent_actions">) => {
+          const expl = asRecord(a.details).ai_explanation;
+          const explanation = typeof expl === "string" ? expl : undefined;
           const isOpen = open === a.id;
           return (
             <div key={a.id} className="rounded-xl border border-border bg-card/40 card-elevated">
@@ -93,7 +96,7 @@ function BlockedPage() {
                   </p>
                 </div>
                 <button
-                  onClick={() => (expl ? setOpen(isOpen ? null : a.id) : runExplain(a.id))}
+                  onClick={() => (explanation ? setOpen(isOpen ? null : a.id) : runExplain(a.id))}
                   disabled={busy === a.id}
                   className="inline-flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs text-primary hover:bg-primary/10 disabled:opacity-50"
                 >
@@ -102,16 +105,16 @@ function BlockedPage() {
                   ) : (
                     <Sparkles className="h-3.5 w-3.5" />
                   )}
-                  {expl ? (isOpen ? "Hide" : "Show") + " explanation" : "Explain"}
+                  {explanation ? (isOpen ? "Hide" : "Show") + " explanation" : "Explain"}
                 </button>
               </div>
-              {isOpen && expl && (
+              {isOpen && explanation && (
                 <div className="border-t border-border p-5 animate-float-up">
                   <div className="font-mono text-[10px] uppercase tracking-widest text-primary">
                     AI explanation
                   </div>
                   <pre className="mt-2 whitespace-pre-wrap font-sans text-sm leading-relaxed text-foreground/90">
-                    {expl}
+                    {explanation}
                   </pre>
                 </div>
               )}
