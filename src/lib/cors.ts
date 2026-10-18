@@ -1,6 +1,6 @@
 /**
  * CORS middleware that FAILS CLOSED when ALLOWED_ORIGINS is not set
- * 
+ *
  * Production security: if ALLOWED_ORIGINS env var is missing, ALL cross-origin
  * requests are blocked. This prevents misconfiguration from exposing APIs.
  */
@@ -11,26 +11,29 @@
  */
 function parseAllowedOrigins(): string[] | null {
   const raw = process.env.ALLOWED_ORIGINS;
-  
-  if (!raw || raw.trim() === '') {
-    console.warn('SECURITY: ALLOWED_ORIGINS not set - CORS will fail closed (block all origins)');
+
+  if (!raw || raw.trim() === "") {
+    console.warn("SECURITY: ALLOWED_ORIGINS not set - CORS will fail closed (block all origins)");
     return null;
   }
-  
+
   // Parse comma-separated list
-  const origins = raw.split(',').map(o => o.trim()).filter(Boolean);
-  
+  const origins = raw
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+
   if (origins.length === 0) {
-    console.warn('SECURITY: ALLOWED_ORIGINS is empty - CORS will fail closed');
+    console.warn("SECURITY: ALLOWED_ORIGINS is empty - CORS will fail closed");
     return null;
   }
-  
+
   // Validate each origin is a valid URL or 'null' (for local file:// access)
   for (const origin of origins) {
-    if (origin === 'null') continue; // Allow 'null' for file:// protocol
+    if (origin === "null") continue; // Allow 'null' for file:// protocol
     try {
       const url = new URL(origin);
-      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      if (url.protocol !== "http:" && url.protocol !== "https:") {
         console.error(`SECURITY: Invalid origin protocol in ALLOWED_ORIGINS: ${origin}`);
         return null;
       }
@@ -39,7 +42,7 @@ function parseAllowedOrigins(): string[] | null {
       return null;
     }
   }
-  
+
   return origins;
 }
 
@@ -52,7 +55,7 @@ const ALLOWED_ORIGINS = parseAllowedOrigins();
 export function isOriginAllowed(origin: string | null): boolean {
   if (!origin) return false;
   if (!ALLOWED_ORIGINS) return false; // Fail closed
-  
+
   return ALLOWED_ORIGINS.includes(origin);
 }
 
@@ -64,13 +67,13 @@ export function getCorsHeaders(origin: string | null): Record<string, string> | 
   if (!isOriginAllowed(origin)) {
     return null; // Fail closed - no CORS headers
   }
-  
+
   return {
-    'Access-Control-Allow-Origin': origin!,
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Credentials': 'true',
-    'Access-Control-Max-Age': '86400', // 24 hours
+    "Access-Control-Allow-Origin": origin!,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Max-Age": "86400", // 24 hours
   };
 }
 
@@ -79,24 +82,24 @@ export function getCorsHeaders(origin: string | null): Record<string, string> | 
  * Returns 403 if origin is not allowed (fail closed)
  */
 export function handleCorsPreflightFailClosed(request: Request): Response {
-  const origin = request.headers.get('Origin');
-  
+  const origin = request.headers.get("Origin");
+
   if (!isOriginAllowed(origin)) {
     // Fail closed: return 403 Forbidden
     return new Response(
-      JSON.stringify({ 
-        error: 'Forbidden',
-        message: 'Origin not allowed. Configure ALLOWED_ORIGINS environment variable.',
+      JSON.stringify({
+        error: "Forbidden",
+        message: "Origin not allowed. Configure ALLOWED_ORIGINS environment variable.",
       }),
-      { 
+      {
         status: 403,
-        headers: { 'Content-Type': 'application/json' },
-      }
+        headers: { "Content-Type": "application/json" },
+      },
     );
   }
-  
+
   const headers = getCorsHeaders(origin);
-  return new Response(null, { 
+  return new Response(null, {
     status: 204,
     headers: headers || {},
   });
@@ -108,17 +111,17 @@ export function handleCorsPreflightFailClosed(request: Request): Response {
  */
 export function addCorsHeaders(response: Response, origin: string | null): Response {
   const corsHeaders = getCorsHeaders(origin);
-  
+
   if (!corsHeaders) {
     // Origin not allowed - return response without CORS headers
     // Browser will block the response
     return response;
   }
-  
+
   const newResponse = new Response(response.body, response);
   Object.entries(corsHeaders).forEach(([key, value]) => {
     newResponse.headers.set(key, value);
   });
-  
+
   return newResponse;
 }

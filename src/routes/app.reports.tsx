@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { FileText, AlertTriangle } from "lucide-react";
+import type { Json, Tables } from "@/integrations/supabase/types";
+import { asRecord } from "@/lib/type-utils";
 
 export const Route = createFileRoute("/app/reports")({ component: ReportsPage });
 
@@ -38,7 +40,7 @@ function ReportsPage() {
           <FileText className="h-5 w-5 text-primary" /> Incident reports
         </h2>
         <div className="mt-4 space-y-3">
-          {(reports.data ?? []).map((r: any) => (
+          {(reports.data ?? []).map((r: Tables<"incident_reports">) => (
             <div key={r.id} className="rounded-xl border border-border bg-card/40 card-elevated">
               <button
                 onClick={() => setOpen(open === r.id ? null : r.id)}
@@ -108,22 +110,27 @@ function ReportsPage() {
                     <div>
                       <SectionLabel>Attack timeline</SectionLabel>
                       <ol className="mt-2 space-y-2">
-                        {r.timeline.map((e: any, i: number) => (
-                          <li
-                            key={i}
-                            className="rounded-md border border-border bg-background/40 p-3"
-                          >
-                            <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] text-primary/80">
-                              <span>{e.time}</span>
-                              <span className="text-muted-foreground">·</span>
-                              <span className="text-foreground">{e.actor}</span>
-                            </div>
-                            <p className="mt-1 text-sm">{e.event}</p>
-                            {e.significance && (
-                              <p className="mt-1 text-xs text-muted-foreground">{e.significance}</p>
-                            )}
-                          </li>
-                        ))}
+                        {(r.timeline as Json[]).map((entry, i: number) => {
+                          const e = asRecord(entry);
+                          return (
+                            <li
+                              key={i}
+                              className="rounded-md border border-border bg-background/40 p-3"
+                            >
+                              <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] text-primary/80">
+                                <span>{String(e.time ?? "")}</span>
+                                <span className="text-muted-foreground">·</span>
+                                <span className="text-foreground">{String(e.actor ?? "")}</span>
+                              </div>
+                              <p className="mt-1 text-sm">{String(e.event ?? "")}</p>
+                              {e.significance ? (
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {String(e.significance)}
+                                </p>
+                              ) : null}
+                            </li>
+                          );
+                        })}
                       </ol>
                     </div>
                   )}
@@ -154,7 +161,7 @@ function ReportsPage() {
           overlap with the rule definition.
         </p>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          {(rules.data ?? []).map((r: any) => (
+          {(rules.data ?? []).map((r: Tables<"detection_rules">) => (
             <RuleCard key={r.id} rule={r} />
           ))}
           {!rules.data?.length && (
@@ -191,7 +198,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function RuleCard({ rule }: { rule: any }) {
+function RuleCard({ rule }: { rule: Tables<"detection_rules"> }) {
   const [open, setOpen] = useState(false);
   const matches = useQuery({
     queryKey: ["rule-matches", rule.id],
@@ -264,15 +271,15 @@ function RuleCard({ rule }: { rule: any }) {
             </div>
           )}
           <ul className="space-y-2">
-            {(matches.data ?? []).map((f: any) => (
+            {(matches.data ?? []).map((f) => (
               <li key={f.id} className="rounded border border-border bg-background/40 px-3 py-2">
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate text-sm">{f.title || f.event_name}</span>
                   <span
                     className="rounded px-1.5 py-0.5 font-mono text-[10px] uppercase"
                     style={{
-                      background: `color-mix(in oklab, ${sevColor(f.ai_severity)} 15%, transparent)`,
-                      color: sevColor(f.ai_severity),
+                      background: `color-mix(in oklab, ${sevColor(f.ai_severity ?? "")} 15%, transparent)`,
+                      color: sevColor(f.ai_severity ?? ""),
                     }}
                   >
                     {f.ai_severity ?? "—"}

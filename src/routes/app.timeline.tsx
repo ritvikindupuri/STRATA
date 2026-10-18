@@ -3,10 +3,12 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow, format } from "date-fns";
 import { ShieldAlert, ShieldCheck, Activity, Bot, FileText, ShieldX } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import type { Tables } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/app/timeline")({ component: TimelinePage });
 
-const ICON: Record<string, any> = {
+const ICON: Record<string, LucideIcon> = {
   block: ShieldX,
   rule_create: Bot,
   report: FileText,
@@ -40,7 +42,7 @@ function TimelinePage() {
           .order("created_at", { ascending: false })
           .limit(20),
       ]);
-      const items: any[] = [];
+      const items: TimelineEvent[] = [];
       for (const a of actions.data ?? []) items.push({ kind: "action", ts: a.created_at, data: a });
       for (const f of findings.data ?? [])
         items.push({ kind: "finding", ts: f.event_time ?? f.created_at, data: f });
@@ -78,7 +80,35 @@ function TimelinePage() {
   );
 }
 
-function TimelineItem({ item }: { item: any }) {
+type TimelineEvent =
+  | { kind: "action"; ts: string; data: Tables<"agent_actions"> }
+  | {
+      kind: "finding";
+      ts: string;
+      data: Pick<
+        Tables<"findings">,
+        | "id"
+        | "title"
+        | "event_name"
+        | "event_time"
+        | "ai_severity"
+        | "ai_category"
+        | "source"
+        | "username"
+        | "source_ip"
+        | "created_at"
+      >;
+    }
+  | {
+      kind: "report";
+      ts: string;
+      data: Pick<
+        Tables<"incident_reports">,
+        "id" | "title" | "severity" | "created_at" | "executive_summary"
+      >;
+    };
+
+function TimelineItem({ item }: { item: TimelineEvent }) {
   const { kind, ts, data } = item;
   let Icon = ICON.default,
     color = "var(--primary)",
@@ -99,7 +129,7 @@ function TimelineItem({ item }: { item: any }) {
           : "var(--success)";
   } else if (kind === "finding") {
     Icon = ShieldAlert;
-    title = data.title ?? data.event_name;
+    title = data.title ?? data.event_name ?? "";
     desc = [data.username, data.source_ip, data.ai_category].filter(Boolean).join(" · ");
     tag = `finding · ${data.source}`;
     color = data.ai_severity === "critical" ? "var(--critical)" : "var(--warning)";

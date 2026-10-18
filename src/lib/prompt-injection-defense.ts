@@ -1,6 +1,6 @@
 /**
  * Prompt injection defenses for LLM interactions
- * 
+ *
  * SECURITY: Prevents untrusted data from manipulating LLM behavior
  */
 
@@ -23,7 +23,7 @@ ${data}
  * SECURITY: Validates LLM response format to prevent injection attacks
  */
 export const SecurityAnalysisSchema = z.object({
-  severity: z.enum(['low', 'medium', 'high', 'critical']),
+  severity: z.enum(["low", "medium", "high", "critical"]),
   category: z.string().max(100),
   summary: z.string().max(1000),
   remediation: z.string().max(1000),
@@ -35,16 +35,19 @@ export type SecurityAnalysis = z.infer<typeof SecurityAnalysisSchema>;
  * Strict schema for detection rule generation
  */
 export const DetectionRulesSchema = z.object({
-  rules: z.array(
-    z.object({
-      name: z.string().max(120),
-      description: z.string().max(500),
-      mitre_technique: z.string().max(20).nullable(),
-      severity: z.enum(['low', 'medium', 'high', 'critical']),
-      match_event_names: z.array(z.string().max(100)).max(20),
-      match_keywords: z.array(z.string().max(100)).max(20),
-    })
-  ).min(1).max(20),
+  rules: z
+    .array(
+      z.object({
+        name: z.string().max(120),
+        description: z.string().max(500),
+        mitre_technique: z.string().max(20).nullable(),
+        severity: z.enum(["low", "medium", "high", "critical"]),
+        match_event_names: z.array(z.string().max(100)).max(20),
+        match_keywords: z.array(z.string().max(100)).max(20),
+      }),
+    )
+    .min(1)
+    .max(20),
 });
 
 export type DetectionRules = z.infer<typeof DetectionRulesSchema>;
@@ -54,18 +57,20 @@ export type DetectionRules = z.infer<typeof DetectionRulesSchema>;
  */
 export const IncidentReportSchema = z.object({
   title: z.string().max(200),
-  severity: z.enum(['low', 'medium', 'high', 'critical']),
+  severity: z.enum(["low", "medium", "high", "critical"]),
   executive_summary: z.string().max(2000),
   mitre_tactics: z.array(z.string().max(20)).max(20),
   affected_resources: z.array(z.string().max(500)).max(50),
-  timeline: z.array(
-    z.object({
-      time: z.string(), // ISO timestamp
-      actor: z.string().max(200),
-      event: z.string().max(500),
-      significance: z.string().max(500),
-    })
-  ).max(50),
+  timeline: z
+    .array(
+      z.object({
+        time: z.string(), // ISO timestamp
+        actor: z.string().max(200),
+        event: z.string().max(500),
+        significance: z.string().max(500),
+      }),
+    )
+    .max(50),
   recommendations: z.string().max(5000),
 });
 
@@ -77,12 +82,12 @@ export type IncidentReport = z.infer<typeof IncidentReportSchema>;
  */
 export function parseAndValidateLlmResponse<T>(
   response: string,
-  schema: z.ZodSchema<T>
+  schema: z.ZodSchema<T>,
 ): { success: true; data: T } | { success: false; error: string } {
   try {
     // Remove markdown code fences if present
     const cleaned = response.replace(/^```json\s*|\s*```$/g, "").trim();
-    
+
     // Parse JSON
     let parsed: unknown;
     try {
@@ -90,15 +95,15 @@ export function parseAndValidateLlmResponse<T>(
     } catch {
       return { success: false, error: "Invalid JSON response from LLM" };
     }
-    
+
     // Validate with Zod schema
     const result = schema.safeParse(parsed);
-    
+
     if (!result.success) {
       console.error("LLM response validation failed:", result.error);
       return { success: false, error: "LLM response does not match expected schema" };
     }
-    
+
     return { success: true, data: result.data };
   } catch (err) {
     console.error("LLM response parsing error:", err);

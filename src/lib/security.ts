@@ -56,8 +56,16 @@ export function sanitizeCssColor(color: string): string {
 /**
  * Validates and sanitizes chart configuration to prevent XSS
  */
-export function sanitizeChartConfig(config: Record<string, any>): Record<string, any> {
-  const sanitized: Record<string, any> = {};
+type ChartConfigEntry = {
+  color?: string;
+  theme?: Record<string, string>;
+  [key: string]: unknown;
+};
+
+export function sanitizeChartConfig(
+  config: Record<string, ChartConfigEntry>,
+): Record<string, ChartConfigEntry> {
+  const sanitized: Record<string, ChartConfigEntry> = {};
 
   for (const [key, value] of Object.entries(config)) {
     if (typeof value === "object" && value !== null) {

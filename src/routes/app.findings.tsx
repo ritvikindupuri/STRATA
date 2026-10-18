@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
+import type { Tables } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/app/findings")({ component: FindingsPage });
 
@@ -27,7 +28,7 @@ function FindingsPage() {
   });
 
   const rows = (findings.data ?? []).filter(
-    (r: any) => (sev === "all" || r.ai_severity === sev) && (src === "all" || r.source === src),
+    (r) => (sev === "all" || r.ai_severity === sev) && (src === "all" || r.source === src),
   );
 
   return (
@@ -41,7 +42,7 @@ function FindingsPage() {
       </div>
 
       <div className="mt-6 space-y-3">
-        {rows.map((f: any) => (
+        {rows.map((f) => (
           <div key={f.id} className="rounded-xl border border-border bg-card/40 card-elevated">
             <button
               onClick={() => setOpen(open === f.id ? null : f.id)}
@@ -97,7 +98,7 @@ function FindingsPage() {
   );
 }
 
-function RowHeader({ f }: { f: any }) {
+function RowHeader({ f }: { f: Tables<"findings"> }) {
   const sev = (f.ai_severity ?? "low") as string;
   const color =
     sev === "critical"
@@ -169,7 +170,7 @@ function FilterGroup<T extends string>({
   );
 }
 
-function Detail({ k, v }: { k: string; v: any }) {
+function Detail({ k, v }: { k: string; v: string | number | null | undefined }) {
   return (
     <div className="rounded-md border border-border bg-background/50 px-3 py-2">
       <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{k}</div>

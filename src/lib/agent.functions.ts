@@ -11,28 +11,40 @@ import { syncFindings } from "@/lib/aws.functions";
 import { validateExternalUrl } from "@/lib/security";
 import { checkRateLimitByUser, RATE_LIMITS, createRateLimitResponse } from "@/lib/rate-limit";
 import { writeAuditLog, AUDIT_ACTIONS, getRequestMetadata } from "@/lib/audit";
-import { getAuthorizedAwsConnection, verifyActionOwnership, createUnauthorizedResponse } from "@/lib/authorization";
+import {
+  getAuthorizedAwsConnection,
+  verifyActionOwnership,
+  createUnauthorizedResponse,
+} from "@/lib/authorization";
 import { createSafeErrorResponse } from "@/lib/redaction";
+import type { Json, Tables } from "@/integrations/supabase/types";
+import {
+  asRecord,
+  chatMessageContent,
+  getErrorMessage,
+  nestedString,
+  readJson,
+} from "@/lib/type-utils";
 
 // ---------- Public entry: run the full autonomous cycle ----------
 export const runAutopilot = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const userId = context.userId;
-    
+
     // SECURITY: Rate limit autopilot runs (expensive operation)
     const rateLimit = checkRateLimitByUser(userId, RATE_LIMITS.AUTOPILOT);
     if (!rateLimit.allowed) {
       return { ok: false as const, error: "Rate limit exceeded" };
     }
-    
+
     // SECURITY: Audit log start
     await writeAuditLog({
       user_id: userId,
       action: AUDIT_ACTIONS.AGENT_RUN_START,
-      status: 'success',
+      status: "success",
     });
-    
+
     const conn = await getAuthorizedAwsConnection(userId);
     if (!conn) return { ok: false as const, error: "No AWS connection configured" };
 
@@ -65,26 +77,28 @@ export const runAutopilot = createServerFn({ method: "POST" })
           `Generated ${created} AI detection rules tailored to this AWS account`,
         );
       }
-    } catch (e: any) {
-      errors.push(`rules: ${e.message}`);
+    } catch (e: unknown) {
+      errors.push(`rules: ${getErrorMessage(e)}`);
     }
 
     // 2. SYNC — pull CloudTrail + GuardDuty (existing function, AI-analyzed)
     try {
-      const syncRes: any = await (syncFindings as any)({});
-      if (syncRes?.ok) {
+      const syncRes = await syncFindings();
+      if (syncRes && "ok" in syncRes && syncRes.ok) {
         stats.events_synced = (syncRes.cloudtrail ?? 0) + (syncRes.guardduty ?? 0);
-      } else if (syncRes?.error) errors.push(`sync: ${syncRes.error}`);
-    } catch (e: any) {
-      errors.push(`sync: ${e.message}`);
+      } else if (syncRes && "error" in syncRes && syncRes.error) {
+        errors.push(`sync: ${syncRes.error}`);
+      }
+    } catch (e: unknown) {
+      errors.push(`sync: ${getErrorMessage(e)}`);
     }
 
     // 3. CONTAINMENT — create approval requests (SECURITY: human-in-the-loop for AWS writes)
     if (conn.auto_response_enabled) {
       try {
         stats.approvals_created = await createContainmentApprovals(userId, conn);
-      } catch (e: any) {
-        errors.push(`contain: ${e.message}`);
+      } catch (e: unknown) {
+        errors.push(`contain: ${getErrorMessage(e)}`);
       }
     }
 
@@ -92,8 +106,8 @@ export const runAutopilot = createServerFn({ method: "POST" })
     try {
       const created = await generateIncidentReport(userId, conn.id);
       if (created) stats.reports = 1;
-    } catch (e: any) {
-      errors.push(`report: ${e.message}`);
+    } catch (e: unknown) {
+      errors.push(`report: ${getErrorMessage(e)}`);
     }
 
     if (runId) {
@@ -107,13 +121,13 @@ export const runAutopilot = createServerFn({ method: "POST" })
         })
         .eq("id", runId);
     }
-    
+
     // SECURITY: Audit log completion
     await writeAuditLog({
       user_id: userId,
       action: AUDIT_ACTIONS.AGENT_RUN_COMPLETE,
       details: { stats },
-      status: errors.length === 0 ? 'success' : 'failure',
+      status: errors.length === 0 ? "success" : "failure",
     });
 
     return { ok: true as const, ...stats, errors };
@@ -155,7 +169,7 @@ export const handleApproval = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     const userId = context.userId;
-    
+
     // SECURITY: Verify ownership of the approval
     const { data: approval } = await supabaseAdmin
       .from("pending_approvals")
@@ -163,47 +177,50 @@ export const handleApproval = createServerFn({ method: "POST" })
       .eq("id", data.approval_id)
       .eq("user_id", userId)
       .maybeSingle();
-    
+
     if (!approval) return createUnauthorizedResponse();
-    
+
     if (approval.status !== "pending") {
       return { ok: false as const, error: "Approval already processed" };
     }
-    
+
     // Check expiry
     if (new Date(approval.expires_at) < new Date()) {
       return { ok: false as const, error: "Approval has expired" };
     }
-    
+
     if (data.action === "reject") {
       // Reject the approval
-      await supabaseAdmin.from("pending_approvals").update({
-        status: "rejected",
-        approved_at: new Date().toISOString(),
-        approved_by: userId,
-      }).eq("id", approval.id);
-      
+      await supabaseAdmin
+        .from("pending_approvals")
+        .update({
+          status: "rejected",
+          approved_at: new Date().toISOString(),
+          approved_by: userId,
+        })
+        .eq("id", approval.id);
+
       await writeAuditLog({
         user_id: userId,
         action: AUDIT_ACTIONS.CONTAINMENT_APPROVAL_DENIED,
         resource_type: "iam_access_key",
         resource_id: approval.target,
         details: { reasoning: approval.reasoning },
-        status: 'success',
+        status: "success",
       });
-      
+
       return { ok: true as const, status: "rejected" };
     }
-    
+
     // Approve and execute the containment action
     const conn = await getAuthorizedAwsConnection(userId);
     if (!conn) return { ok: false as const, error: "No AWS connection" };
-    
+
     const [userName, accessKeyId] = approval.target.split(":");
     if (!userName || !accessKeyId) {
       return { ok: false as const, error: "Invalid target format" };
     }
-    
+
     // SECURITY: Final deterministic check - never disable STRATA's own key
     if (conn.aws_arn?.includes(userName)) {
       await writeAuditLog({
@@ -212,22 +229,27 @@ export const handleApproval = createServerFn({ method: "POST" })
         resource_type: "iam_access_key",
         resource_id: accessKeyId,
         details: { reason: "Attempted to disable STRATA's own credentials" },
-        status: 'blocked',
+        status: "blocked",
       });
       return { ok: false as const, error: "Cannot disable STRATA's own credentials" };
     }
-    
+
     const success = await deactivateAccessKey(conn, userName, accessKeyId);
-    
-    await supabaseAdmin.from("pending_approvals").update({
-      status: success ? "approved" : "rejected",
-      approved_at: new Date().toISOString(),
-      approved_by: userId,
-    }).eq("id", approval.id);
-    
+
+    await supabaseAdmin
+      .from("pending_approvals")
+      .update({
+        status: success ? "approved" : "rejected",
+        approved_at: new Date().toISOString(),
+        approved_by: userId,
+      })
+      .eq("id", approval.id);
+
     await writeAuditLog({
       user_id: userId,
-      action: success ? AUDIT_ACTIONS.CONTAINMENT_APPROVAL_GRANTED : AUDIT_ACTIONS.CONTAINMENT_APPROVAL_DENIED,
+      action: success
+        ? AUDIT_ACTIONS.CONTAINMENT_APPROVAL_GRANTED
+        : AUDIT_ACTIONS.CONTAINMENT_APPROVAL_DENIED,
       resource_type: "iam_access_key",
       resource_id: accessKeyId,
       details: {
@@ -235,9 +257,9 @@ export const handleApproval = createServerFn({ method: "POST" })
         reasoning: approval.reasoning,
         execution_success: success,
       },
-      status: success ? 'success' : 'failure',
+      status: success ? "success" : "failure",
     });
-    
+
     if (success) {
       await writeAuditLog({
         user_id: userId,
@@ -245,10 +267,10 @@ export const handleApproval = createServerFn({ method: "POST" })
         resource_type: "iam_access_key",
         resource_id: accessKeyId,
         details: { user_name: userName },
-        status: 'success',
+        status: "success",
       });
     }
-    
+
     return { ok: true as const, status: success ? "executed" : "failed" };
   });
 
@@ -271,13 +293,17 @@ export const clearSession = createServerFn({ method: "POST" })
       .select("id", { count: "exact", head: true })
       .eq("user_id", uid);
 
-    await (supabaseAdmin as any).from("agent_sessions").insert({
+    await supabaseAdmin.from("agent_sessions").insert({
       user_id: uid,
       runs: runs?.length ?? 0,
-      findings: (findingsCount as any)?.length ?? 0,
-      reports: (reportsCount as any)?.length ?? 0,
-      stats_rollup: (runs ?? []).reduce((acc: any, r: any) => {
-        for (const k of Object.keys(r.stats ?? {})) acc[k] = (acc[k] ?? 0) + (r.stats[k] ?? 0);
+      findings: findingsCount?.length ?? 0,
+      reports: reportsCount?.length ?? 0,
+      stats_rollup: (runs ?? []).reduce((acc: Record<string, number>, r) => {
+        const stats = asRecord(r.stats);
+        for (const k of Object.keys(stats)) {
+          const value = stats[k];
+          acc[k] = (acc[k] ?? 0) + (typeof value === "number" ? value : 0);
+        }
         return acc;
       }, {}),
     });
@@ -308,14 +334,15 @@ export const explainBlock = createServerFn({ method: "POST" })
       .eq("user_id", context.userId)
       .maybeSingle();
     if (!action) return { ok: false as const, error: "not found" };
-    if ((action.details as any)?.ai_explanation) {
+    const existingDetails = asRecord(action.details);
+    if (typeof existingDetails.ai_explanation === "string") {
       return {
         ok: true as const,
-        explanation: (action.details as any).ai_explanation,
+        explanation: existingDetails.ai_explanation,
         cached: true,
       };
     }
-    let finding: any = null;
+    let finding: Tables<"findings"> | null = null;
     if (action.finding_id) {
       const r = await supabaseAdmin
         .from("findings")
@@ -357,13 +384,13 @@ ${JSON.stringify(finding ?? {}, null, 2).slice(0, 4000)}`;
       }),
     });
     if (!res.ok) return { ok: false as const, error: `ai ${res.status}` };
-    const j: any = await res.json();
-    const explanation = String(j?.choices?.[0]?.message?.content ?? "").trim();
+    const j = await readJson(res);
+    const explanation = chatMessageContent(j).trim();
     if (!explanation) return { ok: false as const, error: "empty" };
     await supabaseAdmin
       .from("agent_actions")
       .update({
-        details: { ...((action.details as any) ?? {}), ai_explanation: explanation },
+        details: { ...existingDetails, ai_explanation: explanation } as Json,
       })
       .eq("id", action.id);
     return { ok: true as const, explanation, cached: false };
@@ -401,7 +428,7 @@ async function logAction(
   target: string | null,
   status: string,
   reasoning: string,
-  details: Record<string, any> = {},
+  details: Record<string, unknown> = {},
 ) {
   await supabaseAdmin.from("agent_actions").insert({
     user_id: userId,
@@ -411,7 +438,7 @@ async function logAction(
     target,
     status,
     reasoning,
-    details,
+    details: details as Json,
   });
 }
 
@@ -444,28 +471,36 @@ Generate 8-10 high-signal detection rules covering: credential exfiltration, pri
     }),
   });
   if (!res.ok) return 0;
-  const j: any = await res.json();
-  const content = (j?.choices?.[0]?.message?.content ?? "")
+  const j = await readJson(res);
+  const content = chatMessageContent(j)
     .replace(/^```json\s*|\s*```$/g, "")
     .trim();
-  let parsed: any;
+  let parsed: unknown;
   try {
     parsed = JSON.parse(content);
   } catch {
     return 0;
   }
-  const rules = Array.isArray(parsed?.rules) ? parsed.rules : [];
+  const parsedRecord = asRecord(parsed);
+  const rules = Array.isArray(parsedRecord.rules) ? parsedRecord.rules : [];
   if (!rules.length) return 0;
-  const rows = rules.map((r: any) => ({
-    user_id: userId,
-    connection_id: connectionId,
-    name: String(r.name ?? "Unnamed rule").slice(0, 120),
-    description: String(r.description ?? ""),
-    mitre_technique: r.mitre_technique ?? null,
-    severity: String(r.severity ?? "medium").toLowerCase(),
-    match_event_names: Array.isArray(r.match_event_names) ? r.match_event_names.slice(0, 20) : [],
-    match_keywords: Array.isArray(r.match_keywords) ? r.match_keywords.slice(0, 20) : [],
-  }));
+  const rows = rules.map((rule) => {
+    const r = asRecord(rule);
+    return {
+      user_id: userId,
+      connection_id: connectionId,
+      name: String(r.name ?? "Unnamed rule").slice(0, 120),
+      description: String(r.description ?? ""),
+      mitre_technique: typeof r.mitre_technique === "string" ? r.mitre_technique : null,
+      severity: String(r.severity ?? "medium").toLowerCase(),
+      match_event_names: Array.isArray(r.match_event_names)
+        ? r.match_event_names.map(String).slice(0, 20)
+        : [],
+      match_keywords: Array.isArray(r.match_keywords)
+        ? r.match_keywords.map(String).slice(0, 20)
+        : [],
+    };
+  });
   const { error } = await supabaseAdmin.from("detection_rules").insert(rows);
   if (error) return 0;
   return rows.length;
@@ -473,7 +508,10 @@ Generate 8-10 high-signal detection rules covering: credential exfiltration, pri
 
 // ---------- SECURITY: Create approval requests for containment (human-in-the-loop) ----------
 // LLM analysis cannot directly trigger AWS writes; requires explicit human approval
-async function createContainmentApprovals(userId: string, conn: any): Promise<number> {
+async function createContainmentApprovals(
+  userId: string,
+  conn: Tables<"aws_connections">,
+): Promise<number> {
   // Look at critical findings from the last hour that name an IAM user + access key
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { data: critical } = await supabaseAdmin
@@ -487,7 +525,7 @@ async function createContainmentApprovals(userId: string, conn: any): Promise<nu
   for (const f of critical ?? []) {
     const target = extractCompromisedKey(f);
     if (!target) continue;
-    
+
     // SECURITY: Deterministic check - never block STRATA's own credentials
     // This check cannot be downgraded by LLM output
     if (conn.aws_arn?.includes(target.userName)) {
@@ -502,7 +540,7 @@ async function createContainmentApprovals(userId: string, conn: any): Promise<nu
       );
       continue;
     }
-    
+
     // Check if approval already exists
     const { data: existing } = await supabaseAdmin
       .from("pending_approvals")
@@ -511,9 +549,9 @@ async function createContainmentApprovals(userId: string, conn: any): Promise<nu
       .eq("target", `${target.userName}:${target.accessKeyId}`)
       .eq("status", "pending")
       .maybeSingle();
-    
+
     if (existing) continue; // Already has pending approval
-    
+
     // Create approval request
     const { error } = await supabaseAdmin.from("pending_approvals").insert({
       user_id: userId,
@@ -524,7 +562,7 @@ async function createContainmentApprovals(userId: string, conn: any): Promise<nu
       status: "pending",
       expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour expiry
     });
-    
+
     if (!error) {
       created++;
       await logAction(
@@ -536,7 +574,7 @@ async function createContainmentApprovals(userId: string, conn: any): Promise<nu
         "success",
         "Created approval request for containment action - requires human approval to proceed",
       );
-      
+
       // SECURITY: Audit log
       await writeAuditLog({
         user_id: userId,
@@ -548,25 +586,30 @@ async function createContainmentApprovals(userId: string, conn: any): Promise<nu
           finding_title: f.title,
           ai_severity: f.ai_severity,
         },
-        status: 'success',
+        status: "success",
       });
     }
   }
   return created;
 }
 
-function extractCompromisedKey(f: any): { userName: string; accessKeyId: string } | null {
-  const raw = f.raw ?? {};
+function extractCompromisedKey(
+  f: Tables<"findings">,
+): { userName: string; accessKeyId: string } | null {
+  const raw = f.raw;
   const userName =
-    f.username ?? raw?.userIdentity?.userName ?? raw?.Resource?.AccessKeyDetails?.UserName;
+    f.username ??
+    nestedString(raw, ["userIdentity", "userName"]) ??
+    nestedString(raw, ["Resource", "AccessKeyDetails", "UserName"]);
   const accessKeyId =
-    raw?.userIdentity?.accessKeyId ?? raw?.Resource?.AccessKeyDetails?.AccessKeyId;
+    nestedString(raw, ["userIdentity", "accessKeyId"]) ??
+    nestedString(raw, ["Resource", "AccessKeyDetails", "AccessKeyId"]);
   if (!userName || !accessKeyId) return null;
   return { userName, accessKeyId };
 }
 
 async function deactivateAccessKey(
-  conn: any,
+  conn: Tables<"aws_connections">,
   userName: string,
   accessKeyId: string,
 ): Promise<boolean> {
@@ -652,27 +695,30 @@ ${JSON.stringify(findings, null, 2).slice(0, 9000)}`;
     }),
   });
   if (!res.ok) return false;
-  const j: any = await res.json();
-  const content = (j?.choices?.[0]?.message?.content ?? "")
+  const j = await readJson(res);
+  const content = chatMessageContent(j)
     .replace(/^```json\s*|\s*```$/g, "")
     .trim();
-  let parsed: any;
+  let parsed: unknown;
   try {
     parsed = JSON.parse(content);
   } catch {
     return false;
   }
+  const report = asRecord(parsed);
 
   await supabaseAdmin.from("incident_reports").insert({
     user_id: userId,
     connection_id: connectionId,
-    title: String(parsed.title ?? "Cloud incident detected").slice(0, 200),
-    severity: String(parsed.severity ?? "medium").toLowerCase(),
-    executive_summary: String(parsed.executive_summary ?? ""),
-    mitre_tactics: Array.isArray(parsed.mitre_tactics) ? parsed.mitre_tactics : [],
-    affected_resources: Array.isArray(parsed.affected_resources) ? parsed.affected_resources : [],
-    timeline: Array.isArray(parsed.timeline) ? parsed.timeline : [],
-    recommendations: String(parsed.recommendations ?? ""),
+    title: String(report.title ?? "Cloud incident detected").slice(0, 200),
+    severity: String(report.severity ?? "medium").toLowerCase(),
+    executive_summary: String(report.executive_summary ?? ""),
+    mitre_tactics: Array.isArray(report.mitre_tactics) ? report.mitre_tactics.map(String) : [],
+    affected_resources: Array.isArray(report.affected_resources)
+      ? report.affected_resources.map(String)
+      : [],
+    timeline: Array.isArray(report.timeline) ? (report.timeline as Json) : [],
+    recommendations: String(report.recommendations ?? ""),
     related_finding_ids: findings.map((f) => f.id),
   });
 
@@ -681,7 +727,7 @@ ${JSON.stringify(findings, null, 2).slice(0, 9000)}`;
     connectionId,
     null,
     "report",
-    parsed.title ?? null,
+    typeof report.title === "string" ? report.title : null,
     "success",
     "Generated AI incident report correlating recent high-severity findings",
   );

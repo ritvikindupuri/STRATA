@@ -43,8 +43,8 @@ function LoginPage() {
         if (error) throw error;
         nav({ to: "/app" });
       }
-    } catch (err: any) {
-      toast.error(err.message ?? "Authentication failed");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Authentication failed");
     } finally {
       setLoading(false);
     }

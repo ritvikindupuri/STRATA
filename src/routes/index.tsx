@@ -17,6 +17,7 @@ import {
   GitBranch,
   Sparkles,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/")({ component: Landing });
@@ -324,7 +325,7 @@ function SectionHeader({
   );
 }
 
-function Layer({ icon: Icon, name, mono }: { icon: any; name: string; mono: string }) {
+function Layer({ icon: Icon, name, mono }: { icon: LucideIcon; name: string; mono: string }) {
   return (
     <div className="group bg-card/50 p-6 transition-colors hover:bg-card">
       <Icon
@@ -339,7 +340,7 @@ function Layer({ icon: Icon, name, mono }: { icon: any; name: string; mono: stri
   );
 }
 
-function Feature({ icon: Icon, name, desc }: { icon: any; name: string; desc: string }) {
+function Feature({ icon: Icon, name, desc }: { icon: LucideIcon; name: string; desc: string }) {
   return (
     <div className="group bg-card/50 p-7 transition-colors hover:bg-card">
       <div className="grid h-10 w-10 place-items-center rounded-lg border border-primary/30 bg-primary/[0.06] text-primary">
@@ -368,7 +369,7 @@ function Step({
   last = false,
 }: {
   i: string;
-  icon: any;
+  icon: LucideIcon;
   title: string;
   desc: string;
   last?: boolean;
@@ -397,7 +398,13 @@ function Step({
 /* ---------- Agent Flow: connected sequential pipeline ---------- */
 
 type AgentEngine = "gpt" | "gemini" | "deterministic";
-const AGENTS: { icon: any; name: string; desc: string; engine: AgentEngine; model: string }[] = [
+const AGENTS: {
+  icon: LucideIcon;
+  name: string;
+  desc: string;
+  engine: AgentEngine;
+  model: string;
+}[] = [
   {
     icon: GitBranch,
     name: "Rule Architect",

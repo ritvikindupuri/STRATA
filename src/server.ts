@@ -72,21 +72,21 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       // SECURITY: Handle CORS preflight with fail-closed policy
-      if (request.method === 'OPTIONS') {
+      if (request.method === "OPTIONS") {
         return handleCorsPreflightFailClosed(request);
       }
-      
+
       const handler = await getServerEntry();
       let response = await handler.fetch(request, env, ctx);
       response = await normalizeCatastrophicSsrResponse(response);
-      
+
       // SECURITY: Add CORS headers with fail-closed policy
-      const origin = request.headers.get('Origin');
+      const origin = request.headers.get("Origin");
       response = addCorsHeaders(response, origin);
-      
+
       // SECURITY: Add comprehensive security headers (CSP, HSTS, etc.)
       response = addSecurityHeaders(response);
-      
+
       return response;
     } catch (error) {
       console.error(error);

@@ -27,6 +27,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { getErrorMessage } from "@/lib/type-utils";
 
 export const Route = createFileRoute("/app/connect")({ component: ConnectAws });
 
@@ -72,7 +73,7 @@ function ConnectAws() {
   const conn = useQuery({
     queryKey: ["aws-conn"],
     queryFn: async (): Promise<SafeConn | null> => {
-      const { data } = await (supabase as any).rpc("my_aws_connection");
+      const { data } = await supabase.rpc("my_aws_connection");
       return (Array.isArray(data) && data.length ? data[0] : null) as SafeConn | null;
     },
   });
@@ -94,7 +95,7 @@ function ConnectAws() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const r: any = await save({
+      const r = await save({
         data: {
           label,
           region,
@@ -111,13 +112,13 @@ function ConnectAws() {
       setSecretAccessKey("");
       conn.refetch();
       autopilot()
-        .then((rr: any) => {
+        .then((rr) => {
           if (rr?.ok)
             toast.success(`Agents ready · ${rr.rules_created} rules · ${rr.events_synced} events`);
         })
         .catch(() => {});
-    } catch (err: any) {
-      toast.error(err.message ?? "Failed");
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || "Failed");
     } finally {
       setSubmitting(false);
     }
@@ -126,7 +127,7 @@ function ConnectAws() {
   const handleSeed = async () => {
     setSeedBusy(true);
     try {
-      const r: any = await seed({});
+      const r = await seed({});
       if (r.ok)
         toast.success(
           `Sandbox populated · ${r.findings} findings · ${r.rules} rules · ${r.report} report`,
@@ -147,7 +148,7 @@ function ConnectAws() {
     e.preventDefault();
     setEsBusy(true);
     try {
-      const r: any = await esConnect({
+      const r = await esConnect({
         data: { endpoint: esEndpoint.trim(), apiKey: esApiKey.trim(), index: esIndex.trim() },
       });
       if (r.ok) {
@@ -162,7 +163,7 @@ function ConnectAws() {
   const handleEsSync = async () => {
     const t = toast.loading("Pulling from Elasticsearch…");
     try {
-      const r: any = await esSync({});
+      const r = await esSync({});
       toast.dismiss(t);
       if (r.ok) toast.success(`Synced ${r.inserted} events from Elasticsearch`);
       else toast.error(r.error);
@@ -210,7 +211,7 @@ function ConnectAws() {
                   size="sm"
                   variant="outline"
                   onClick={async () => {
-                    const r: any = await revalidate({});
+                    const r = await revalidate({});
                     if (r.ok) {
                       toast.success("Connection healthy");
                       conn.refetch();
