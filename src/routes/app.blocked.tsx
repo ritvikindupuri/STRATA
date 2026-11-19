@@ -26,7 +26,7 @@ function BlockedPage() {
         await supabase
           .from("agent_actions")
           .select("*")
-          .eq("action_type", "block")
+          .eq("action_type", "approval_request")
           .order("created_at", { ascending: false })
           .limit(100)
       ).data ?? [],
@@ -48,11 +48,11 @@ function BlockedPage() {
     <div className="p-8">
       <p className="font-mono text-xs uppercase tracking-widest text-primary">// containment</p>
       <h1 className="mt-1 font-display text-3xl font-semibold flex items-center gap-3">
-        <ShieldX className="h-7 w-7 text-primary" /> Auto-blocked actions
+        <ShieldX className="h-7 w-7 text-primary" /> Containment approvals
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Every containment action the agent took (deactivated keys, skipped attempts). Click
-        "Explain" to have the AI summarize why.
+        Approval requests queued for IAM key containment. The target and reason are here for review.
+        Click "Explain" to have the AI summarize a request.
       </p>
 
       <div className="mt-6 space-y-3">
