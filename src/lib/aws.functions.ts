@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { signAwsRequest } from "@/lib/aws/sigv4";
 import { encryptSecret, decryptSecret } from "@/lib/aws/crypto";
 import { validateAwsHostname, validateExternalUrl } from "@/lib/security";
+import { buildTriageRequest, fieldsFromTriageContent } from "@/lib/triage";
 import type { Json, Tables } from "@/integrations/supabase/types";
 import {
   asRecord,
@@ -421,16 +422,7 @@ async function analyzeAndStore(
     return;
   }
 
-  const prompt = `You are a senior cloud security analyst. Analyze this AWS security event and return strict JSON:
-{
- "severity": "low|medium|high|critical",
- "category": "short label like 'Privilege Escalation', 'Suspicious Login', 'Data Exfiltration', 'Config Tampering', 'Recon', 'Benign'",
- "summary": "2-3 sentence plain-English explanation of what happened and why it matters",
- "remediation": "concrete action the operator should take, 1-3 sentences"
-}
-
-Event:
-${JSON.stringify(row.raw ?? row, null, 2).slice(0, 6000)}`;
+  const triage = buildTriageRequest(row.raw ?? row);
 
   try {
     const res = await fetch(aiGatewayUrl, {
@@ -439,28 +431,22 @@ ${JSON.stringify(row.raw ?? row, null, 2).slice(0, 6000)}`;
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          {
-            role: "system",
-            content:
-              "You are a precise cloud security analyst. Respond with ONLY valid JSON, no markdown, no prose.",
-          },
-          { role: "user", content: prompt },
+          { role: "system", content: triage.system },
+          { role: "user", content: triage.user },
         ],
         temperature: 0.2,
       }),
     });
     if (!res.ok) return;
     const j = await readJson(res);
-    const content = chatMessageContent(j);
-    const clean = content.replace(/^```json\s*|\s*```$/g, "").trim();
-    const parsed = JSON.parse(clean);
+    const fields = fieldsFromTriageContent(chatMessageContent(j));
     await supabaseAdmin
       .from("findings")
       .update({
-        ai_severity: String(parsed.severity ?? "low").toLowerCase(),
-        ai_category: parsed.category ?? "Unknown",
-        ai_summary: parsed.summary ?? "",
-        ai_remediation: parsed.remediation ?? "",
+        ai_severity: fields.ai_severity,
+        ai_category: fields.ai_category,
+        ai_summary: fields.ai_summary,
+        ai_remediation: fields.ai_remediation,
         ai_analyzed_at: new Date().toISOString(),
       })
       .eq("id", findingId);
