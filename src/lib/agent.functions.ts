@@ -18,13 +18,12 @@ import {
 } from "@/lib/authorization";
 import { createSafeErrorResponse } from "@/lib/redaction";
 import type { Json, Tables } from "@/integrations/supabase/types";
+import { asRecord, chatMessageContent, getErrorMessage, readJson } from "@/lib/type-utils";
 import {
-  asRecord,
-  chatMessageContent,
-  getErrorMessage,
-  nestedString,
-  readJson,
-} from "@/lib/type-utils";
+  approvalTargetMatchesFinding,
+  extractCompromisedKey,
+  parseApprovalAction,
+} from "@/lib/containment-guard";
 
 // ---------- Public entry: run the full autonomous cycle ----------
 export const runAutopilot = createServerFn({ method: "POST" })
@@ -163,9 +162,12 @@ export const regenerateRules = createServerFn({ method: "POST" })
 export const handleApproval = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => {
-    const i = input as { approval_id?: string; action?: "approve" | "reject" };
-    if (!i.approval_id || !i.action) throw new Error("approval_id and action required");
-    return { approval_id: String(i.approval_id), action: i.action };
+    const i = input as { approval_id?: unknown; action?: unknown };
+    const action = parseApprovalAction(i.action);
+    if (typeof i.approval_id !== "string" || !i.approval_id || !action) {
+      throw new Error("approval_id and action (approve|reject) required");
+    }
+    return { approval_id: i.approval_id, action };
   })
   .handler(async ({ data, context }) => {
     const userId = context.userId;
@@ -189,7 +191,10 @@ export const handleApproval = createServerFn({ method: "POST" })
       return { ok: false as const, error: "Approval has expired" };
     }
 
-    if (data.action === "reject") {
+    const action = parseApprovalAction(data.action);
+    if (!action) return { ok: false as const, error: "Invalid action" };
+
+    if (action === "reject") {
       // Reject the approval
       await supabaseAdmin
         .from("pending_approvals")
@@ -212,14 +217,34 @@ export const handleApproval = createServerFn({ method: "POST" })
       return { ok: true as const, status: "rejected" };
     }
 
-    // Approve and execute the containment action
+    if (action !== "approve") return { ok: false as const, error: "Invalid action" };
+
+    // Approve only when the stored target still matches the finding's key.
     const conn = await getAuthorizedAwsConnection(userId);
     if (!conn) return { ok: false as const, error: "No AWS connection" };
 
-    const [userName, accessKeyId] = approval.target.split(":");
-    if (!userName || !accessKeyId) {
-      return { ok: false as const, error: "Invalid target format" };
+    if (!approval.finding_id) {
+      return { ok: false as const, error: "Approval is not bound to a finding" };
     }
+    const { data: finding } = await supabaseAdmin
+      .from("findings")
+      .select("id, username, raw")
+      .eq("id", approval.finding_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    const bound = finding ? approvalTargetMatchesFinding(approval.target, finding) : null;
+    if (!bound) {
+      await writeAuditLog({
+        user_id: userId,
+        action: AUDIT_ACTIONS.CONTAINMENT_APPROVAL_DENIED,
+        resource_type: "iam_access_key",
+        resource_id: approval.target,
+        details: { reason: "Approval target does not match the finding" },
+        status: "blocked",
+      });
+      return { ok: false as const, error: "Approval target does not match the finding" };
+    }
+    const { userName, accessKeyId } = bound;
 
     // SECURITY: Final deterministic check - never disable STRATA's own key
     if (conn.aws_arn?.includes(userName)) {
@@ -591,21 +616,6 @@ async function createContainmentApprovals(
     }
   }
   return created;
-}
-
-function extractCompromisedKey(
-  f: Tables<"findings">,
-): { userName: string; accessKeyId: string } | null {
-  const raw = f.raw;
-  const userName =
-    f.username ??
-    nestedString(raw, ["userIdentity", "userName"]) ??
-    nestedString(raw, ["Resource", "AccessKeyDetails", "UserName"]);
-  const accessKeyId =
-    nestedString(raw, ["userIdentity", "accessKeyId"]) ??
-    nestedString(raw, ["Resource", "AccessKeyDetails", "AccessKeyId"]);
-  if (!userName || !accessKeyId) return null;
-  return { userName, accessKeyId };
 }
 
 async function deactivateAccessKey(
