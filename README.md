@@ -22,7 +22,7 @@ Furthermore, STRATA doesn't just alert you to danger; it can actively stop it. W
    - **Step 1: Rule Architect**: Dynamically generates and updates account-tailored detection rules mapped to MITRE ATT&CK tactics and AWS best practices.
    - **Step 2: Telemetry Collector**: Collects unanalyzed raw logs and findings from CloudTrail, GuardDuty, and optional log sources.
    - **Step 3: Threat Triage (AI)**: Evaluates raw security events using Gemini 2.5 Flash to score risk, de-duplicate alerts, and isolate confirmed threats with context and severity ratings.
-   - **Step 4: Containment Agent**: Automatically deactivates compromised IAM access keys via `iam:UpdateAccessKey` the moment high-confidence, critical threats are confirmed (when auto-response is enabled).
+   - **Step 4: Containment Agent**: When auto-response is enabled, a critical IAM finding queues a human approval bound to the access key on that finding. `iam:UpdateAccessKey` runs only after that approval is explicitly accepted.
    - **Step 5: Incident Reporter**: Clusters correlated high/critical findings over 24-hour windows to synthesize detailed executive incident reports (Markdown/JSON) and timelines using GPT-5.
    - **Step 6: Log Indexer (Elasticsearch)**: Concurrently indexes telemetry into Elasticsearch for high-performance log searching and correlation.
 4. **Primary Data Store (Box 4)**: Persists all operational state in **Supabase PostgreSQL** (`agent_runs`, `findings`, `agent_actions`, `incident_reports`, `detection_rules`, and `aws_connections`).
