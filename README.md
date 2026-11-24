@@ -1,11 +1,11 @@
 # STRATA
 **Autonomous intrusion detection system for your AWS cloud.**
 
-STRATA is built to eliminate the alert fatigue and manual toil inherent in modern cloud security operations. By simply connecting a read-only AWS IAM key, STRATA deploys a fleet of six specialized autonomous agents that handle the entire incident response lifecycle from end to end.
+STRATA is built to eliminate the alert fatigue and manual toil inherent in modern cloud security operations. By simply connecting a read-only AWS IAM key, STRATA runs a pipeline of specialized agents that handle the incident response lifecycle from detection to reporting, with a human approving any containment action.
 
-Instead of forcing a human analyst to sift through endless logs, STRATA continuously polls AWS CloudTrail and GuardDuty (across identity, API, network, data, and control planes), normalizes the telemetry, and instantly feeds it into advanced LLMs for triage. High-volume events are rapidly categorized and severity-scored by Google's Gemini 2.5 Flash, while deep-reasoning tasks—such as drafting account-specific detection rules and writing CISO-ready incident reports—are handled by OpenAI's GPT-5.
+Instead of forcing a human analyst to sift through endless logs, STRATA polls AWS CloudTrail and GuardDuty (across identity, API, network, data, and control planes) every 5 minutes while the dashboard is open or on demand, normalizes the telemetry, and instantly feeds it into advanced LLMs for triage. High-volume events are rapidly categorized and severity-scored by Google's Gemini 2.5 Flash, while deep-reasoning tasks—such as drafting account-specific detection rules and writing CISO-ready incident reports—are handled by OpenAI's GPT-5.
 
-Furthermore, STRATA doesn't just alert you to danger; it can actively stop it. When auto-response is enabled, deterministic containment agents instantly revoke compromised IAM credentials the moment a critical threat is confirmed, shrinking the window of compromise from hours down to seconds. From rule generation to containment and final reporting, STRATA provides a fully automated, transparent, and highly accurate cloud defense solution requiring zero human intervention.
+Furthermore, STRATA doesn't just alert you to danger; it can actively stop it. When auto-response is enabled, the Containment agent proposes deactivating the compromised IAM access key and waits for an analyst to approve it (requests expire after 1 hour). On approval, STRATA calls `iam:UpdateAccessKey` to set the key Inactive. From rule generation to approval-gated containment and final reporting, STRATA provides an automated, transparent cloud defense pipeline that keeps a human in the loop for every AWS write.
 
 ## System Architecture
 
@@ -18,13 +18,13 @@ Furthermore, STRATA doesn't just alert you to danger; it can actively stop it. W
 
 1. **Security Team & Dashboard (Box 1)**: Operators interact with the STRATA web dashboard to monitor live detections, review incident reports, manage ATT&CK-based detection rules, and configure account settings.
 2. **AWS Telemetry Ingestion (Box 2)**: STRATA pulls live cloud security telemetry directly from **AWS CloudTrail** (API activity & audit logs) and **Amazon GuardDuty** (threat detections & security findings).
-3. **STRATA 6-Agent Detection Pipeline (Box 3)**:
+3. **STRATA Agent Detection Pipeline (Box 3)**:
    - **Step 1: Rule Architect**: Dynamically generates and updates account-tailored detection rules mapped to MITRE ATT&CK tactics and AWS best practices.
    - **Step 2: Telemetry Collector**: Collects unanalyzed raw logs and findings from CloudTrail, GuardDuty, and optional log sources.
    - **Step 3: Threat Triage (AI)**: Evaluates raw security events using Gemini 2.5 Flash to score risk, de-duplicate alerts, and isolate confirmed threats with context and severity ratings.
-   - **Step 4: Containment Agent**: Automatically deactivates compromised IAM access keys via `iam:UpdateAccessKey` the moment high-confidence, critical threats are confirmed (when auto-response is enabled).
+   - **Step 4: Containment Agent**: When auto-response is enabled, proposes deactivating the compromised IAM access key for critical threats and waits for analyst approval (requests expire after 1 hour). On approval, it calls `iam:UpdateAccessKey` to set the key Inactive.
    - **Step 5: Incident Reporter**: Clusters correlated high/critical findings over 24-hour windows to synthesize detailed executive incident reports (Markdown/JSON) and timelines using GPT-5.
-   - **Step 6: Log Indexer (Elasticsearch)**: Concurrently indexes telemetry into Elasticsearch for high-performance log searching and correlation.
+   - **Step 6: Elasticsearch Importer (optional)**: Pulls events from your connected Elasticsearch / OpenSearch index into the STRATA pipeline for correlation.
 4. **Primary Data Store (Box 4)**: Persists all operational state in **Supabase PostgreSQL** (`agent_runs`, `findings`, `agent_actions`, `incident_reports`, `detection_rules`, and `aws_connections`).
 5. **Search & Analytics Integration (Box 5)**: Optional **Elasticsearch / OpenSearch** cluster integration for fast log queries and cross-dataset threat correlation.
 6. **Outputs & Visibility (Box 6)**: Exposes 6 dedicated dashboard modules: **Real-time Detections**, **Incident Timeline**, **Incident Reports**, **Containment Log**, **Search & Correlation**, and **Rule Management**.
@@ -59,7 +59,7 @@ To get the STRATA application setup and running locally:
 **Connecting AWS:**
 Once the application is running and you have logged in, **to see the instructions on how to connect the application to an AWS account, click the "Connect AWS" tab in the STRATA application.** The wizard will walk you through creating a secure, read-only IAM user for STRATA.
 
-Once your account is successfully connected, you will see a connected status banner on this same page. Here, you have the option to click the **Enable auto-response** button. By default, STRATA operates with strictly read-only permissions. Enabling auto-response opts you in to active containment, allowing the Containment Agent to issue `iam:UpdateAccessKey` requests to instantly revoke compromised IAM credentials the moment a critical threat is detected.
+Once your account is successfully connected, you will see a connected status banner on this same page. Here, you have the option to click the **Enable auto-response** button. By default, STRATA operates with strictly read-only permissions. Enabling auto-response opts you in to active containment, allowing the Containment Agent to propose `iam:UpdateAccessKey` requests that deactivate compromised IAM credentials once you approve them (each request expires after 1 hour).
 
 **Connecting Elasticsearch / OpenSearch:**
 In the same "Connect AWS" tab, you can connect an Elasticsearch cluster. **Please note that Elasticsearch findings are additive to AWS findings and that users must click Sync (or enable auto-sync) to pull logs into the STRATA pipeline.**
